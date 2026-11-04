@@ -1,0 +1,69 @@
+const int trig1 = 8;
+const int echo1 = 9;
+
+const int trig2 = 6;
+const int echo2 = 7;
+
+float lexoDistancen(int trigPin, int echoPin) {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(3);
+
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  // Timeout pas 30 milisekondash
+  unsigned long koha = pulseIn(echoPin, HIGH, 30000);
+
+  if (koha == 0) {
+    return -1; // Nuk u mor matje e vlefshme
+  }
+
+  return koha * 0.0343 / 2.0;
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(trig1, OUTPUT);
+  pinMode(echo1, INPUT);
+
+  pinMode(trig2, OUTPUT);
+  pinMode(echo2, INPUT);
+
+  digitalWrite(trig1, LOW);
+  digitalWrite(trig2, LOW);
+
+  Serial.println("Testimi i dy sensoreve HC-SR04");
+}
+
+void loop() {
+  float distanca1 = lexoDistancen(trig1, echo1);
+
+  // Pushim i shkurter per te zvogeluar nderhyrjet
+  delay(60);
+
+  float distanca2 = lexoDistancen(trig2, echo2);
+
+  Serial.print("Sensori 1 (D8/D9): ");
+
+  if (distanca1 < 0) {
+    Serial.print("Nuk ka matje");
+  } else {
+    Serial.print(distanca1, 1);
+    Serial.print(" cm");
+  }
+
+  Serial.print("  |  Sensori 2 (D6/D7): ");
+
+  if (distanca2 < 0) {
+    Serial.print("Nuk ka matje");
+  } else {
+    Serial.print(distanca2, 1);
+    Serial.print(" cm");
+  }
+
+  Serial.println();
+
+  delay(500);
+}
