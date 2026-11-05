@@ -164,8 +164,8 @@ Parametrat fillestarë për testim:
 
 ### 1. Klono repo-n
 ```bash
-git clone https://github.com/<organizata-ose-perdoruesi>/<emri-i-repo-s>.git
-cd <emri-i-repo-s>
+git clone git@github.com:Projekti-Sistemi-i-parkimit/Projketi-Sistemi-i-parkimit.git>
+cd <Projketi-Sistemi-i-parkimit>
 ```
 
 ### 2. Ngarko kodin në Arduino
