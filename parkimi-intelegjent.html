@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="sq" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Parkimi Inteligjent</title>
+<meta name="theme-color" content="#ffc400">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Parkimi">
+<style>
+:root,[data-theme="dark"]{--bg:#0b0b0c;--panel:#151517;--panel2:#1f1f22;--text:#f5f3ea;--muted:#9a9a90;--border:#2e2e32;--accent:#ffc400;--onacc:#111;--free:#2fd07a;--occ:#ff3b30;--warn:#8c8f98;--lot:#2a2e36;--stripe:rgba(255,255,255,.55);--shadow:0 18px 40px rgba(0,0,0,.5)}
+[data-theme="light"]{--bg:#efede4;--panel:#fff;--panel2:#f4f2e8;--text:#111;--muted:#6a6a60;--border:#dcd8c8;--accent:#d00000;--onacc:#fff;--free:#12a85a;--occ:#d00000;--warn:#8c8f98;--lot:#cfd6e3;--stripe:rgba(255,255,255,.95);--shadow:0 18px 40px rgba(60,50,20,.12)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Segoe UI Variable","Inter",system-ui,-apple-system,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* sidebar */
+.side{width:84px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:20px 0;gap:10px;position:sticky;top:0;height:100vh;flex-shrink:0}
+.logo{width:48px;height:48px;border-radius:14px;background:var(--accent);display:grid;place-items:center;color:#fff;font-weight:800;font-size:24px;margin-bottom:18px}
+.nav{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:var(--muted);cursor:pointer;border:0;background:none;transition:background .15s,color .15s}
+.nav:hover{background:var(--panel2);color:var(--text)}
+.nav.on{background:var(--panel2);color:var(--accent)}
+.nav svg{width:22px;height:22px}
+
+main{flex:1;min-width:0;padding:28px 36px;display:flex;flex-direction:column;gap:22px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.top h1{font-size:1.9rem;font-weight:700;letter-spacing:-.02em}
+.top p{color:var(--muted);margin-top:4px}
+.chips{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--border);font-size:.88rem;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.chip.on{color:var(--free)}.chip.on .dot{background:var(--free);box-shadow:0 0 0 4px rgba(47,208,122,.18)}
+
+/* sector tabs */
+.tabs{display:flex;gap:12px;flex-wrap:wrap}
+.tab{display:flex;align-items:center;gap:14px;padding:12px 18px;border-radius:16px;background:var(--panel);border:1px solid var(--border);cursor:pointer;text-align:left;transition:border-color .15s}
+.tab:hover{border-color:var(--accent)}
+.tab.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.tab b{display:block;font-size:.95rem}
+.tab small{color:var(--muted);font-size:.78rem}
+.tab .n{font-size:1.5rem;font-weight:700;color:var(--free);min-width:34px;text-align:right}
+.tab .live{font-size:.7rem;color:var(--accent);font-weight:600}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:22px;align-items:start}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow)}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:18px 24px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px}
+.bar h2{font-size:1.05rem}.bar small{display:block;color:var(--muted);font-weight:400;margin-top:2px}
+.legend{display:flex;gap:16px;font-size:.8rem;color:var(--muted)}
+.legend span{display:flex;gap:6px;align-items:center}.legend i{width:10px;height:10px;border-radius:3px}
+
+/* lot */
+.lot{margin:20px;padding:44px 26px 36px;position:relative;overflow:hidden;perspective:1300px;
+ background:radial-gradient(ellipse at 50% -10%,rgba(255,226,140,.16),transparent 62%),repeating-linear-gradient(90deg,rgba(255,255,255,.018) 0 2px,transparent 2px 6px),#2a2e36;
+ border:7px solid transparent;border-image:repeating-linear-gradient(-45deg,#f5c400 0 14px,#16181d 14px 28px) 7;box-shadow:inset 0 0 60px rgba(0,0,0,.45)}
+.plane,.row,.stall{transform-style:preserve-3d}
+.plane{transform:rotateX(30deg) scale(.97);transform-origin:50% 55%}
+.row{display:grid;gap:0;align-items:stretch;justify-content:stretch}
+.stall{position:relative;aspect-ratio:3/4.8;min-height:130px;border-left:4px solid #f4f4ee;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 2px}
+.row .stall:last-child{border-right:4px solid #f4f4ee}
+.row.top .stall{border-top:4px solid #f5c400}
+.row:not(.top) .stall{border-bottom:4px solid #f5c400}
+.stall.free{background:linear-gradient(180deg,rgba(47,208,122,.22),rgba(47,208,122,.05))}
+.stall.occupied{background:linear-gradient(180deg,rgba(255,90,95,.12),transparent)}
+.stall.unknown{background:linear-gradient(180deg,rgba(255,176,32,.16),transparent)}
+.stall .id{font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.55);color:#fff}
+.stall .cm{font-size:.66rem;color:#c3c9d6;font-variant-numeric:tabular-nums}
+.stall.free .id{background:var(--free);color:#06210f}
+.stall.occupied .id{background:var(--occ)}
+.stall.unknown .id{background:var(--warn);color:#2a1a00}
+.stall .p{position:absolute;inset:0;display:grid;place-items:center;font-size:2.6rem;font-weight:800;color:#f4f4ee;opacity:.5}
+.car{position:absolute;left:50%;top:50%;width:56%;height:64%;transform:translate(-50%,-50%);transform-style:preserve-3d}
+.car.rev{transform:translate(-50%,-50%) rotate(180deg)}
+.car::before{content:"";position:absolute;inset:8% -8% -4%;border-radius:30%;background:rgba(0,0,0,.6);filter:blur(7px)}
+.car i{position:absolute;inset:0;border-radius:26% 26% 20% 20%/14% 14% 10% 10%;background:var(--c)}
+.car b{position:absolute;left:12%;right:12%;top:27%;bottom:27%;border-radius:12px 12px 8px 8px;background:linear-gradient(180deg,#0d1522,#223552)}
+.car b.roof{left:15%;right:15%;top:34%;bottom:34%;background:var(--c);filter:brightness(1.12)}
+.car u{position:absolute;width:15%;height:20%;background:#0a0b0d;border-radius:4px;transform:translateZ(3px)}
+.car s{position:absolute;width:20%;height:5%;border-radius:3px;transform:translateZ(7px)}
+.lane{height:74px;margin:16px 0;position:relative;display:flex;align-items:center;justify-content:space-around;background:#2a2e36}
+.lane::before{content:"";position:absolute;left:0;right:0;top:50%;height:8px;transform:translateY(-50%);border-top:3px dashed #f5c400;border-bottom:3px dashed #f5c400}
+.lane span{position:relative;background:#2a2e36;padding:0 14px;font-size:1.5rem;color:#f4f4ee;opacity:.85}
+.entry{position:absolute;left:12px;top:50%;transform:translateY(-50%);z-index:3;background:#f5c400;color:#16181d;padding:4px 9px;font-size:.7rem;font-weight:800;border-radius:3px}
+
+/* right */
+.side2{display:flex;flex-direction:column;gap:18px}
+.pad{padding:20px}
+.pad h3{font-size:.95rem;margin-bottom:14px}
+.ring{--p:0;width:150px;height:150px;border-radius:50%;margin:0 auto 16px;background:conic-gradient(var(--occ) calc(var(--p)*1%),var(--panel2) 0);display:grid;place-items:center}
+.ring div{width:112px;height:112px;border-radius:50%;background:var(--panel);display:grid;place-items:center;text-align:center}
+.ring b{font-size:1.7rem;display:block;line-height:1}.ring small{color:var(--muted);font-size:.72rem}
+.st{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--border);font-size:.92rem}
+.st b.f{color:var(--free)}.st b.o{color:var(--occ)}.st b.w{color:var(--warn)}
+.btns{display:flex;flex-direction:column;gap:10px}
+.btn{padding:12px;border-radius:12px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;font-weight:600;font-size:.9rem;transition:border-color .15s}
+.btn:hover{border-color:var(--accent)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.set{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.set label{display:block;font-size:.75rem;color:var(--muted);margin-bottom:5px}
+.set input{width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel2)}
+.log{height:130px;overflow-y:auto;font:.72rem ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px;color:var(--muted)}
+.log .ok{color:var(--free)}.log .err{color:var(--occ)}
+
+@media(max-width:1100px){.grid{grid-template-columns:1fr}}
+@media(max-width:700px){.side{display:none}main{padding:18px}.stall{min-height:84px}.car{width:66%}.stall .p{font-size:1.4rem}.stall .id{font-size:.65rem;padding:1px 6px}.stall .cm{display:none}.lot{margin:12px;padding:10px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.logo{background:#ffc400;color:#111;box-shadow:inset 0 0 0 3px #111}
+.btn.pri{color:var(--onacc)}
+.hazard{height:10px;border-radius:5px;background:repeating-linear-gradient(-45deg,#ffc400 0 16px,#111 16px 32px)}
+.stall{aspect-ratio:3/5.2;min-height:150px;cursor:pointer}
+.car{top:47%;height:50%}
+.stall.reserved{background:linear-gradient(180deg,rgba(255,196,0,.28),rgba(255,196,0,.06))}
+.stall.reserved .id{background:#ffc400;color:#111}
+.qr{width:30px;height:30px;background:#fff;padding:2px;border-radius:3px;line-height:0;z-index:2}.qr svg{width:100%;height:100%}
+.mv{position:absolute;inset:0;transform-style:preserve-3d}
+.mv.in{animation:drvIn 1.3s ease-out both}.mv.out{animation:drvOut 1.3s ease-in both}
+@keyframes drvIn{from{transform:translateY(var(--dy))}to{transform:none}}
+@keyframes drvOut{from{transform:none}to{transform:translateY(var(--dy))}}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:grid;place-items:center;z-index:50;padding:16px}
+.modal[hidden]{display:none}
+.mbox{width:min(420px,100%);background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:30px 22px 22px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.mbox::before{content:"";position:absolute;left:0;right:0;top:0;height:8px;background:repeating-linear-gradient(-45deg,#ffc400 0 14px,#111 14px 28px)}
+.mbox h3{margin-bottom:14px}.mrow{display:flex;gap:16px;margin-bottom:16px}.mrow p{margin-bottom:6px;font-size:.9rem}
+.qrbig{width:130px;height:130px;background:#fff;padding:8px;border-radius:10px;flex-shrink:0;line-height:0}.qrbig svg{width:100%;height:100%}
+button.chip{cursor:pointer;color:var(--text)}
+</style>
+</head>
+<body>
+<nav class="side">
+  <div class="logo">P</div>
+  <button class="nav on" title="Parkimi"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 17V7h4a3 3 0 0 1 0 6H9"/></svg></button>
+  <button class="nav" title="Statistikat"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></button>
+  <button class="nav" title="Sektorët"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></button>
+  <button class="nav" title="Admin"><svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg></button>
+</nav>
+
+<main>
+  <div class="hazard"></div>
+  <header class="top">
+    <div>
+      <h1>Harta e parkimit</h1>
+      <p id="sub">Sektori A, Kati B1</p>
+    </div>
+    <div class="chips">
+      <div class="chip"><span id="dateText"></span>&nbsp;<b id="timeText"></b></div>
+      <div class="chip" style="color:var(--accent);font-weight:700">Hapur 24/7</div>
+      <button class="chip" id="userChip" title="Hyr ose dil">Hyr</button>
+      <div class="chip" id="onlineStatus"><span class="dot"></span><span id="onlineText">Sistemi offline</span></div>
+    </div>
+  </header>
+
+  <div class="tabs" id="tabs"></div>
+
+  <div class="grid">
+    <section class="card">
+      <div class="bar">
+        <h2 id="mapTitle">Sektori A<small></small></h2>
+        <div class="legend">
+          <span><i style="background:var(--free)"></i>I lirë</span>
+          <span><i style="background:var(--occ)"></i>I zënë</span>
+          <span><i style="background:#ffc400"></i>Rezervuar</span>
+          <span><i style="background:var(--warn)"></i>Pa sinjal</span>
+        </div>
+      </div>
+      <div class="lot"><div class="plane">
+        <div class="row top" id="rowTop"></div>
+        <div class="lane"><div class="entry">HYRJE</div><span>➜</span><span>➜</span><span>➜</span><span>➜</span></div>
+        <div class="row" id="rowBottom"></div>
+      </div></div>
+    </section>
+
+    <aside class="side2">
+      <div class="card pad">
+        <h3>Zënia, <span id="statSector">Sektori A</span></h3>
+        <div class="ring" id="ring"><div><span><b id="pct">0%</b><small>e zënë</small></span></div></div>
+        <div class="st"><span>Total vende</span><b id="statTotal">0</b></div>
+        <div class="st"><span>Vende të lira</span><b class="f" id="statFree">0</b></div>
+        <div class="st"><span>Vende të zëna</span><b class="o" id="statOcc">0</b></div>
+        <div class="st"><span>Pa sinjal</span><b class="w" id="statErr">0</b></div>
+      </div>
+
+      <div class="card pad">
+        <h3>Kontrolli</h3>
+        <div class="btns">
+          <button class="btn pri" id="btnConnect">Lidh USB</button>
+          <button class="btn" id="btnDisconnect" disabled>Shkëput</button>
+          <button class="btn" id="btnDemo">Fillo demon</button>
+          <button class="btn" id="btnTheme">Ndrysho temën</button>
+        </div>
+        <div class="set">
+          <div><label for="maxRange">Max (cm)</label><input type="number" id="maxRange" value="10" min="2" max="100" step="0.5"></div>
+          <div><label for="occThreshold">I zënë ≤ (cm)</label><input type="number" id="occThreshold" value="3" min="1" max="100" step="0.5"></div>
+        </div>
+        <div style="margin-top:12px"><label for="baseUrl" style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:5px">Linku publik i faqes (për QR)</label><input id="baseUrl" placeholder="https://parkimi.shembull.com" style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text)"></div>
+        <div style="margin-top:12px"><label for="apiKey" style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:5px">Çelësi i serverit (vetëm kompjuteri me Arduino)</label><input id="apiKey" type="password" autocomplete="off" style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text)"></div>
+      </div>
+
+      <div class="card pad">
+        <h3>Historiku i qëndrimeve</h3>
+        <div id="hist"></div>
+      </div>
+
+      <div class="card pad">
+        <h3>Log serial</h3>
+        <div class="log" id="log">Në pritje…</div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<div class="modal" id="modal" hidden><div class="mbox" id="mbox"></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+/* ================= TË DHËNAT ================= */
+const ids = (p, a, b) => Array.from({length: b - a + 1}, (_, i) => p + (a + i));
+const SECTORS = {
+  A: { name: "Sektori A", subtitle: "Sektori A, Kati B1", floor: "Kati B1", live: true,
+       layout: { top: [], bottom: ["P1","P2"] } },
+  B: { name: "Sektori B", subtitle: "Sektori B, Kati B2", floor: "Kati B2", live: false,
+       layout: { top: ids("P",1,6), bottom: ids("P",7,12) } },
+  C: { name: "Sektori C", subtitle: "Sektori C, Parkingu i jashtëm", floor: "I jashtëm", live: false,
+       layout: { top: ids("P",1,10), bottom: ids("P",11,20) } }
+};
+for (const k in SECTORS) SECTORS[k].spaces = [...SECTORS[k].layout.top, ...SECTORS[k].layout.bottom];
+
+const state = { activeSector: "A", sectorStates: {}, maxRange: 10, occThreshold: 3,
+  serialPort: null, reader: null, reading: false, demoInterval: null, demoPhase: 0 };
+
+for (const k in SECTORS) {
+  state.sectorStates[k] = {};
+  SECTORS[k].spaces.forEach((id, i) => {
+    if (k === "A") { state.sectorStates[k][id] = { status: "unknown", cm: null, sensorOk: false }; return; }
+    const free = (i * 7 + (k === "C" ? 3 : 1)) % 4 === 0;
+    state.sectorStates[k][id] = { status: free ? "free" : "occupied", cm: free ? 6.2 : 1.8, sensorOk: true };
+  });
+}
+
+const COLORS = ["#e9ecf1","#1d2230","#a9b0bc","#c0262d","#2b5fb4","#4a5160","#e8e3d0"];
+const $ = id => document.getElementById(id);
+
+/* ================= ORA ================= */
+function updateDateTime() {
+  const now = new Date();
+  const m = ["Janar","Shkurt","Mars","Prill","Maj","Qershor","Korrik","Gusht","Shtator","Tetor","Nëntor","Dhjetor"];
+  $("dateText").textContent = `${now.getDate()} ${m[now.getMonth()]} ${now.getFullYear()}`;
+  $("timeText").textContent = now.toLocaleTimeString("sq-AL", { hour: "2-digit", minute: "2-digit" });
+}
+updateDateTime(); setInterval(updateDateTime, 60000);
+
+/* ================= RENDER ================= */
+function freeCount(k) { return SECTORS[k].spaces.filter(id => state.sectorStates[k][id].status === "free" && !resOf(k, id)).length; }
+
+function renderTabs() {
+  $("tabs").innerHTML = "";
+  for (const k in SECTORS) {
+    const s = SECTORS[k];
+    const b = document.createElement("button");
+    b.className = "tab" + (k === state.activeSector ? " on" : "");
+    b.innerHTML = `<div><b>${s.name}</b><small>${s.floor}, ${s.spaces.length} vende</small>${s.live ? '<div class="live">Sensorë live</div>' : ''}</div><div class="n">${freeCount(k)}</div>`;
+    b.onclick = () => { state.activeSector = k; renderAll(); };
+    $("tabs").appendChild(b);
+  }
+}
+
+function carHTML() {
+  let h = "";
+  for (let z = 0; z <= 10; z += 2) h += `<i style="transform:translateZ(${z}px);filter:brightness(${(.62 + z * .035).toFixed(2)})"></i>`;
+  for (let z = 11; z <= 21; z += 2) h += `<b style="transform:translateZ(${z}px)"></b>`;
+  h += `<b class="roof" style="transform:translateZ(23px)"></b>`;
+  h += `<u style="left:-7%;top:12%"></u><u style="right:-7%;top:12%"></u><u style="left:-7%;bottom:12%"></u><u style="right:-7%;bottom:12%"></u>`;
+  h += `<s style="left:10%;top:2%;background:#fff7d6;box-shadow:0 0 8px #ffe9a0"></s><s style="right:10%;top:2%;background:#fff7d6;box-shadow:0 0 8px #ffe9a0"></s>`;
+  h += `<s style="left:10%;bottom:2%;background:#ff2b2b;box-shadow:0 0 8px #ff2b2b"></s><s style="right:10%;bottom:2%;background:#ff2b2b;box-shadow:0 0 8px #ff2b2b"></s>`;
+  return h;
+}
+
+function qrSvg(t, c) { try { const q = qrcode(0, "M"); q.addData(t); q.make(); return q.createSvgTag(c, 0); } catch (_) { return ""; } }
+function spotUrl(k, id) { return (db.baseUrl || location.href.split("#")[0]) + "#" + k + "-" + id; }
+function stall(id, d, idx, rev) {
+  const k = state.activeSector, kk = key(k, id), r = resOf(k, id), m = mv[kk], now = Date.now();
+  const anim = m && now - m.t < 1400 ? m : null;
+  const el = document.createElement("div");
+  el.className = "stall " + (d.status === "free" && r ? "reserved" : d.status);
+  const at = anim ? ` ${anim.type}" style="--dy:${rev ? "-170%" : "170%"};animation-delay:-${((now - anim.t) / 1000).toFixed(2)}s` : "";
+  const car = `<div class="mv${at}"><div class="car${rev ? " rev" : ""}" style="--c:${COLORS[(idx * 3 + id.length) % COLORS.length]}">${carHTML()}</div></div>`;
+  const show = d.status === "occupied" || (anim && anim.type === "out");
+  el.innerHTML = (show ? car : d.status === "free" ? `<div class="p">${r ? "R" : "P"}</div>` : `<div class="p" style="color:var(--warn)">?</div>`)
+    + `<span class="id">${id}</span><div class="qr">${qrSvg(spotUrl(k, id), 2)}</div>`;
+  el.title = "Kliko për detaje dhe rezervim";
+  el.onclick = () => openSpot(k, id);
+  return el;
+}
+
+function fillRow(el, list, rev) {
+  if (!list.length) { el.style.display = "none"; return; }
+  el.style.display = "grid";
+  el.style.gridTemplateColumns = `repeat(${list.length},1fr)`;
+  el.innerHTML = "";
+  list.forEach((id, i) => el.appendChild(stall(id, state.sectorStates[state.activeSector][id], i, rev)));
+}
+
+function renderMap() {
+  const s = SECTORS[state.activeSector];
+  $("mapTitle").innerHTML = `${s.name}<small>${s.subtitle}</small>`;
+  $("sub").textContent = s.subtitle;
+  fillRow($("rowTop"), s.layout.top);
+  fillRow($("rowBottom"), s.layout.bottom, true);
+}
+
+function renderStats() {
+  const k = state.activeSector, st = state.sectorStates[k], l = SECTORS[k].spaces;
+  const c = x => l.filter(id => st[id].status === x).length;
+  const occ = c("occupied"), known = occ + c("free");
+  $("statTotal").textContent = l.length;
+  $("statFree").textContent = c("free") - l.filter(id => st[id].status === "free" && resOf(k, id)).length;
+  $("statOcc").textContent = occ;
+  $("statErr").textContent = c("unknown");
+  $("statSector").textContent = SECTORS[k].name;
+  const pct = known ? Math.round(occ / known * 100) : 0;
+  $("pct").textContent = pct + "%";
+  $("ring").style.setProperty("--p", pct);
+}
+
+function renderAll() { if (apiKey && (state.serialPort || state.demoInterval)) pushStates(); syncSessions(); renderTabs(); renderMap(); renderStats(); renderHist(); }
+
+/* ================= LOG ================= */
+function log(msg, cls) {
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  $("log").appendChild(line);
+  $("log").scrollTop = $("log").scrollHeight;
+  while ($("log").childNodes.length > 200) $("log").removeChild($("log").firstChild);
+}
+
+/* ================= KLASIFIKIMI ================= */
+function classify(cm, ok) {
+  if (!ok || cm === null || cm < 0) return "unknown";
+  if (cm <= state.occThreshold) return "occupied";
+  if (cm <= state.maxRange) return "free";
+  return "unknown";
+}
+
+/* ================= PARSERI I ARDUINO ================= */
+const RX_S1 = /Sensori\s*1\s*\(D8\/D9\):\s*(Nuk ka matje|[\d.]+)\s*(cm)?/i;
+const RX_S2 = /Sensori\s*2\s*\(D6\/D7\):\s*(Nuk ka matje|[\d.]+)\s*(cm)?/i;
+
+function parseSensor(m) {
+  if (!m || m[1].toLowerCase().startsWith("nuk")) return { cm: null, sensorOk: false };
+  const v = parseFloat(m[1]);
+  return isNaN(v) ? { cm: null, sensorOk: false } : { cm: v, sensorOk: true };
+}
+
+function ingestReading(line) {
+  if (!/Sensori\s*1/i.test(line)) return;
+  const s1 = parseSensor(line.match(RX_S1)), s2 = parseSensor(line.match(RX_S2));
+  const apply = (id, s) => { state.sectorStates.A[id] = { cm: s.cm, sensorOk: s.sensorOk, status: classify(s.cm, s.sensorOk) }; };
+  apply("P1", s1); apply("P2", s2);
+  log(`${line.trim()}  →  P1:${state.sectorStates.A.P1.status}  P2:${state.sectorStates.A.P2.status}`, (s1.sensorOk && s2.sensorOk) ? "ok" : "err");
+  renderAll();
+}
+
+/* ================= WEB SERIAL ================= */
+async function connectSerial() {
+  if (!("serial" in navigator)) { alert("Web Serial nuk mbështetet. Përdor Chrome ose Edge në desktop."); return; }
+  try {
+    state.serialPort = await navigator.serial.requestPort();
+    await state.serialPort.open({ baudRate: 9600 });
+    $("onlineStatus").classList.add("on");
+    $("onlineText").textContent = "Sistemi online";
+    $("btnConnect").disabled = true; $("btnDisconnect").disabled = false;
+    log("USB serial u lidh me 9600 baud", "ok");
+    readLoop();
+  } catch (e) { log("Lidhja dështoi: " + e.message, "err"); }
+}
+
+async function readLoop() {
+  if (!state.serialPort) return;
+  state.reading = true;
+  const decoder = new TextDecoderStream();
+  state.serialPort.readable.pipeTo(decoder.writable).catch(() => {});
+  const reader = decoder.readable.getReader();
+  state.reader = reader;
+  let buffer = "";
+  try {
+    while (state.reading) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+      let idx;
+      while ((idx = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 1);
+        if (line) ingestReading(line);
+      }
+    }
+  } catch (e) { if (state.reading) log("Gabim serial: " + e.message, "err"); }
+  finally { try { reader.releaseLock(); } catch (_) {} state.reading = false; }
+}
+
+async function disconnectSerial() {
+  state.reading = false;
+  try { if (state.reader) await state.reader.cancel(); } catch (_) {}
+  try { if (state.serialPort) await state.serialPort.close(); } catch (_) {}
+  state.serialPort = null; state.reader = null;
+  $("onlineStatus").classList.remove("on");
+  $("onlineText").textContent = "Sistemi offline";
+  $("btnConnect").disabled = false; $("btnDisconnect").disabled = true;
+  log("USB serial u shkëput");
+}
+$("btnConnect").onclick = connectSerial;
+$("btnDisconnect").onclick = disconnectSerial;
+
+/* ================= DEMO ================= */
+function toggleDemo() {
+  if (state.demoInterval) {
+    clearInterval(state.demoInterval); state.demoInterval = null;
+    $("btnDemo").textContent = "Fillo demon"; log("Demo u ndal"); return;
+  }
+  $("btnDemo").textContent = "Ndalo demon";
+  log("Demo aktive (lexime të simuluara)", "err");
+  state.demoPhase = 0;
+  state.demoInterval = setInterval(() => {
+    const t = ++state.demoPhase;
+    const p1 = 1.5 + 1.2 * Math.sin(t / 2), p2 = 5.0 + 3.5 * Math.sin(t / 3 + 1);
+    state.sectorStates.A.P1 = { cm: p1, sensorOk: true, status: classify(p1, true) };
+    state.sectorStates.A.P2 = { cm: p2, sensorOk: true, status: classify(p2, true) };
+    ["B","C"].forEach(k => {
+      const id = SECTORS[k].spaces[Math.floor(Math.random() * SECTORS[k].spaces.length)];
+      const free = state.sectorStates[k][id].status === "occupied";
+      state.sectorStates[k][id] = { status: free ? "free" : "occupied", cm: free ? 6.2 : 1.8, sensorOk: true };
+    });
+    log(`Sensori 1: ${p1.toFixed(1)} cm | Sensori 2: ${p2.toFixed(1)} cm`, "ok");
+    renderAll();
+  }, 1500);
+}
+$("btnDemo").onclick = toggleDemo;
+
+/* ================= CILËSIMET ================= */
+function readSettings() {
+  const maxV = parseFloat($("maxRange").value), occV = parseFloat($("occThreshold").value);
+  if (!isNaN(maxV) && maxV >= 2 && maxV <= 100) state.maxRange = maxV;
+  if (!isNaN(occV) && occV >= 1 && occV <= 100 && occV < state.maxRange) state.occThreshold = occV;
+  for (const id in state.sectorStates.A) {
+    const s = state.sectorStates.A[id];
+    if (s.cm !== null && s.sensorOk) s.status = classify(s.cm, true);
+  }
+  renderAll();
+}
+$("maxRange").addEventListener("input", readSettings);
+$("occThreshold").addEventListener("input", readSettings);
+
+/* ================= TEMA ================= */
+$("btnTheme").onclick = () => {
+  const r = document.documentElement;
+  r.setAttribute("data-theme", r.getAttribute("data-theme") === "dark" ? "light" : "dark");
+};
+
+/* ================= DATABAZA (localStorage) ================= */
+const DB_KEY = "parkimi_db";
+let db = { users: {}, res: [], sessions: [], me: null };
+try { db = Object.assign(db, JSON.parse(localStorage.getItem(DB_KEY) || "{}")); } catch (_) {}
+const save = () => { try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (_) {} };
+const key = (k, id) => k + "-" + id;
+const resOf = (k, id) => db.res.find(r => r.key === key(k, id));
+const esc = t => String(t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = ms => { const m = Math.floor(ms / 60000); return m >= 1 ? m + " min" : Math.floor(ms / 1000) + " s"; };
+const prev = {}, mv = {};
+let pendingSpot = null;
+const hm = t => new Date(t).toTimeString().slice(0, 5);
+const defTime = () => hm(Date.now() + 36e5);
+function endFromTime(t) {
+  const [h, m] = t.split(":").map(Number), e = new Date();
+  e.setHours(h, m, 0, 0);
+  if (e.getTime() <= Date.now()) e.setDate(e.getDate() + 1);
+  return e.getTime();
+}
+
+function syncSessions() {
+  const now = Date.now(); let ch = false;
+  for (const k in SECTORS) SECTORS[k].spaces.forEach(id => {
+    const kk = key(k, id), st = state.sectorStates[k][id].status, p = prev[kk]; prev[kk] = st;
+    if (SERVER) { if (p && p !== st) { if (st === "occupied") mv[kk] = { t: now, type: "in" }; else if (p === "occupied" && st !== "unknown") mv[kk] = { t: now, type: "out" }; } return; }
+    const open = db.sessions.find(s => s.key === kk && !s.end);
+    if (st === "occupied" && !open) {
+      const r = resOf(k, id);
+      db.sessions.push({ key: kk, name: r ? r.name : "Vizitor", plate: r ? r.plate : "-", start: now, until: r ? r.end : null, end: null });
+      if (r) db.res = db.res.filter(x => x !== r);
+      if (p && p !== "occupied") mv[kk] = { t: now, type: "in" };
+      ch = true;
+    } else if (open && st !== "occupied" && st !== "unknown") {
+      open.end = now; mv[kk] = { t: now, type: "out" }; ch = true;
+    }
+  });
+  const n = db.res.length; db.res = db.res.filter(r => now < (r.end || r.start + 15 * 60000));
+  if (db.res.length !== n) ch = true;
+  if (db.sessions.length > 300) db.sessions = db.sessions.slice(-300);
+  if (ch) save();
+}
+
+function renderHist() {
+  const now = Date.now(), l = db.sessions.slice(-6).reverse();
+  $("hist").innerHTML = l.length ? l.map(s => `<div class="st"><span>${esc(s.name)} · ${s.key}</span><b>${fmt((s.end || now) - s.start)}${s.end ? "" : " ●"}</b></div>`).join("") : "Ende pa qëndrime.";
+}
+
+/* ================= SERVERI (SQLite) ================= */
+let SERVER = false, apiKey = "";
+try { apiKey = localStorage.getItem("parkimi_key") || ""; } catch (_) {}
+async function api(path, opt = {}) {
+  const r = await fetch(path, { ...opt, headers: { "Content-Type": "application/json", ...(db.me && db.me.token ? { Authorization: "Bearer " + db.me.token } : {}), ...(opt.headers || {}) } });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+async function pull() {
+  try {
+    const j = await api("/api/state"); SERVER = true;
+    if (!state.serialPort && !state.demoInterval)
+      for (const kk in j.spots) { const [k, id] = kk.split("-"), o = j.spots[kk]; if (state.sectorStates[k] && state.sectorStates[k][id]) state.sectorStates[k][id] = { status: o.status, cm: o.cm, sensorOk: o.status !== "unknown" }; }
+    db.res = j.res; db.sessions = j.sessions; renderAll();
+  } catch (_) { SERVER = false; }
+}
+const pushed = {};
+async function pushStates() {
+  const list = [];
+  for (const k in SECTORS) SECTORS[k].spaces.forEach(id => {
+    if (k !== "A" && !state.demoInterval) return;
+    const d = state.sectorStates[k][id], kk = key(k, id), sig = d.status + (d.cm === null ? "" : Math.round(d.cm));
+    if (pushed[kk] !== sig) { pushed[kk] = sig; list.push({ key: kk, status: d.status, cm: d.cm }); }
+  });
+  if (!list.length) return;
+  try { await api("/api/sensor", { method: "POST", headers: { "x-api-key": apiKey }, body: JSON.stringify({ spots: list }) }); } catch (e) { log("Serveri: " + e.message, "err"); }
+}
+
+/* ================= HYRJA, REZERVIMI, MODALI ================= */
+function showModal(h) { $("mbox").innerHTML = h; $("modal").hidden = false; }
+function closeModal() { $("modal").hidden = true; }
+$("modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
+function renderUser() { $("userChip").textContent = db.me ? db.me.name + " · " + db.me.plate : "Hyr"; }
+$("userChip").onclick = () => { if (db.me) { db.me = null; save(); renderUser(); } else openLogin(); };
+function openLogin() {
+  showModal(`<h3>Hyrje</h3><div class="set" style="grid-template-columns:1fr"><div><label>Emri</label><input id="lgName" maxlength="30"></div><div><label>Targa e veturës</label><input id="lgPlate" maxlength="10" placeholder="p.sh. 01-234-AB"></div></div><div class="btns" style="margin-top:14px"><button class="btn pri" onclick="doLogin()">Hyr</button><button class="btn" onclick="closeModal()">Anulo</button></div>`);
+  $("lgName").focus();
+}
+async function doLogin() {
+  const n = $("lgName").value.trim(), p = $("lgPlate").value.trim().toUpperCase();
+  if (!n || !p) { $("lgName").focus(); return; }
+  db.me = { name: n, plate: p };
+  if (SERVER) { try { db.me.token = (await api("/api/login", { method: "POST", body: JSON.stringify({ name: n, plate: p }) })).token; } catch (e) { db.me = null; alert(e.message); return; } }
+  db.users[p] = n; save(); closeModal(); renderUser(); renderAll();
+  if (pendingSpot) { const q = pendingSpot; pendingSpot = null; openSpot(q.k, q.id); }
+}
+async function reserve(k, id) {
+  if (!db.me) return openLogin();
+  const end = endFromTime(($("rzTime") && $("rzTime").value) || defTime());
+  if (SERVER) { try { await api("/api/reserve", { method: "POST", body: JSON.stringify({ key: key(k, id), end }) }); await pull(); } catch (e) { alert(e.message); return; } }
+  else { db.res = db.res.filter(r => r.plate !== db.me.plate); db.res.push({ key: key(k, id), name: db.me.name, plate: db.me.plate, start: Date.now(), end }); save(); }
+  closeModal(); renderAll(); log(`Rezervim: ${db.me.name} → ${k}-${id}`, "ok");
+}
+async function cancelRes(k, id) {
+  if (SERVER) { try { await api("/api/reserve/" + key(k, id), { method: "DELETE" }); await pull(); } catch (e) { alert(e.message); return; } }
+  else { db.res = db.res.filter(r => r.key !== key(k, id)); save(); }
+  closeModal(); renderAll();
+}
+function openSpot(k, id) {
+  const d = state.sectorStates[k][id], kk = key(k, id), r = resOf(k, id), me = db.me, now = Date.now();
+  const open = db.sessions.find(s => s.key === kk && !s.end);
+  pendingSpot = { k, id };
+  let b = `<h3>${SECTORS[k].name} · ${id}</h3><div class="mrow"><div class="qrbig">${qrSvg(spotUrl(k, id), 4)}</div><div>`;
+  b += `<p>Gjendja: <b>${{ free: "I lirë", occupied: "I zënë", unknown: "Pa sinjal" }[d.status]}</b></p>`;
+  if (d.cm !== null) b += `<p>Distanca: ${d.cm.toFixed(1)} cm</p>`;
+  if (open) b += `<p>Në parking: <b>${esc(open.name)}</b></p><p>Qëndron prej: <b>${fmt(now - open.start)}</b></p>`
+    + (open.until ? `<p>Del në orën: <b>${hm(open.until)}</b></p>` + (now > open.until ? `<p style="color:var(--occ)">Ka kaluar ora e planifikuar</p>` : "") : "");
+  if (r) b += `<p>Rezervuar nga <b>${esc(r.name)}</b>, deri në orën <b>${hm(r.end)}</b></p>`;
+  b += `</div></div><div class="btns">`;
+  if (!me) b += `<button class="btn pri" onclick="openLogin()">Hyr për të rezervuar</button>`;
+  else if (r && (r.mine || r.plate === me.plate)) b += `<button class="btn" onclick="cancelRes('${k}','${id}')">Anulo rezervimin</button>`;
+  else if (d.status === "free" && !r) b += `<div class="set" style="grid-template-columns:1fr;margin:0"><div><label>Do dal në orën (parkingu është hapur 24/7)</label><input type="time" id="rzTime" value="${defTime()}"></div></div><button class="btn pri" onclick="reserve('${k}','${id}')">Rezervo vendin</button>`;
+  b += `<button class="btn" onclick="closeModal()">Mbyll</button></div>`;
+  showModal(b);
+}
+setInterval(renderHist, 30000);
+
+renderAll();
+renderUser();
+$("baseUrl").value = db.baseUrl || "";
+$("baseUrl").oninput = e => { db.baseUrl = e.target.value.trim().replace(/#.*$/, ""); save(); renderAll(); };
+$("apiKey").value = apiKey;
+$("apiKey").oninput = e => { apiKey = e.target.value.trim(); try { localStorage.setItem("parkimi_key", apiKey); } catch (_) {} };
+pull().then(() => { if (SERVER) setInterval(pull, 3000); });
+{ const h = location.hash.match(/^#(\w+)-(P\d+)$/);
+  if (h && SECTORS[h[1]] && SECTORS[h[1]].spaces.includes(h[2])) { state.activeSector = h[1]; renderAll(); openSpot(h[1], h[2]); } }
+log("Aplikacioni u ngarkua. Lidh USB ose aktivizo demon.");
+</script>
+</body>
+</html>
