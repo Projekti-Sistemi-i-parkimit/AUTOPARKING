@@ -177,12 +177,17 @@ cd <Projketi-Sistemi-i-parkimit>
 ```bash
 cd backend
 npm install
+cp .env.example .env      # vendos ADMIN_PASSWORD etj.
+npm run seed              # krijon adminin + çelësin API të urës (shfaqet vetëm një herë)
 npm start
 ```
 
 ### 4. Hap dashboard-in
-- Hap `frontend/index.html` ose adresën e backend-it (p.sh. `http://localhost:3000`).
-- Shtyp **“Lidh Arduino”** dhe zgjidh portën serial (Web Serial).
+- Hap `http://localhost:3000` — frontend-i (dosja `frontend/`) shërbehet nga backend-i.
+- Dokumentimi i API-së: `http://localhost:3000/api/docs`
+- Hyrja e administratorit: butoni **“Hyrja Admin”** lart djathtas.
+- Lidhja me Arduino: paneli admin → **“Lidhja Arduino”** → *Lidh USB* (Web Serial, kërkon Chrome/Edge/Brave) dhe vendos çelësin API të urës.
+- Dy tema: **White Glass** (default) dhe **Black Parking** — ndërrohen nga navigimi dhe ruhen në shfletues.
 
 > Për qasje nga pajisje të tjera (p.sh. telefona që skanojnë QR) aplikacioni duhet të jetë i hostuar online ose në të njëjtin rrjet lokal.
 
