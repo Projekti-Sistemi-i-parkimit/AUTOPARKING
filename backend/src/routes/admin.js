@@ -11,7 +11,7 @@ const { logAction } = require("../services/audit");
 // Rrugët administrative (M3): hyrja/dalja, menaxhimi i përdoruesve dhe
 // çelësave API, dhe leximi i audit log-ut. Të gjitha përveç login-it
 // kërkojnë Bearer token; veprimet e ndjeshme kërkojnë rolin "admin" (RBAC).
-module.exports = function adminRoutes(db, config) {
+module.exports = function adminRoutes(db, config, hub) {
   const router = Router();
 
   // POST /api/admin/login  { username, password } → { token, role, expires_at }
@@ -104,6 +104,22 @@ module.exports = function adminRoutes(db, config) {
     if (info.changes === 0) throw new HttpError(404, "Çelësi API nuk u gjet");
     logAction(db, req.admin.id, "api_key_revoked", { id });
     res.json({ ok: true });
+  });
+
+  // POST /api/admin/barrier  { status, reason? } — kontrolli i barrierës nga paneli
+  // (i lejuar për admin dhe operator; regjistrohet në audit_log dhe barrier_events)
+  router.post("/admin/barrier", auth, (req, res) => {
+    const status = requireEnum((req.body || {}).status, "status", ["open", "closed"]);
+    const reason = req.body.reason ? requireString(req.body.reason, "reason", { max: 200 }) : null;
+    const source = `admin:${req.admin.username}`;
+    const current = db.prepare("SELECT status FROM barrier_state WHERE id = 1").get();
+    db.prepare("UPDATE barrier_state SET status = ?, updated_at = datetime('now') WHERE id = 1").run(status);
+    db.prepare("INSERT INTO barrier_events (status, reason, source) VALUES (?, ?, ?)").run(status, reason, source);
+    logAction(db, req.admin.id, "barrier_control", { status, reason });
+    if (current.status !== status && hub) {
+      hub.broadcast("barrier_update", { status, reason }, "barrier");
+    }
+    res.json({ ok: true, status, changed: current.status !== status });
   });
 
   // GET /api/admin/audit-log?page=1&limit=50

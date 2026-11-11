@@ -60,3 +60,21 @@ test("barriera: gjendja fillestare, përditësimi dhe historiku", async () => {
   const bad = await t.api("POST", "/api/barrier", { apiKey: t.bridgeKey, body: { status: "half-open" } });
   assert.equal(bad.status, 400);
 });
+test("POST /api/admin/barrier lejon kontrollin e barrierës nga admini me audit", async () => {
+  const noAuth = await t.api("POST", "/api/admin/barrier", { body: { status: "open" } });
+  assert.equal(noAuth.status, 401);
+
+  const token = await t.adminLogin();
+  const bad = await t.api("POST", "/api/admin/barrier", { token, body: { status: "error" } });
+  assert.equal(bad.status, 400, "admini s'vendos dot statusin 'error' manualisht");
+
+  const r = await t.api("POST", "/api/admin/barrier", { token, body: { status: "closed", reason: "test manual" } });
+  assert.equal(r.status, 200);
+  assert.equal(r.json.status, "closed");
+
+  const now = await t.api("GET", "/api/barrier");
+  assert.equal(now.json.status, "closed");
+
+  const audit = t.db.prepare("SELECT 1 FROM audit_log WHERE action = 'barrier_control'").get();
+  assert.ok(audit, "kontrolli i barrierës duhet të regjistrohet në audit_log");
+});

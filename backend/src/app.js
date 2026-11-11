@@ -32,10 +32,10 @@ function createApp({ db, config }) {
 
   app.use(express.json({ limit: "256kb" }));
 
-  // Frontend-i ekzistues shërbehet nga rrënja e repo-s pa e lëvizur skedarin.
-  app.get("/", (req, res) =>
-    res.sendFile(path.join(__dirname, "..", "..", "parkimi-intelegjent.html"))
-  );
+  // Frontend-i shërbehet nga dosja frontend/ (prototipi i vjetër mbetet në rrënjë).
+  const frontendDir = path.join(__dirname, "..", "..", "frontend");
+  app.use(express.static(frontendDir));
+  app.get("/", (req, res) => res.sendFile(path.join(frontendDir, "index.html")));
 
   app.get("/api/health", (req, res) => res.json({ ok: true, uptime_s: Math.round(process.uptime()) }));
   app.get("/api/realtime", hub.handler());
@@ -47,7 +47,7 @@ function createApp({ db, config }) {
   app.use("/api", eventsRoutes(database));
   app.use("/api", qrRoutes(database, hub));
   app.use("/api", visitorRoutes(database, parking, hub));
-  app.use("/api", adminRoutes(database, config));
+  app.use("/api", adminRoutes(database, config, hub));
 
   app.use(notFound);
   app.use(errorHandler);
