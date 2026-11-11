@@ -4,10 +4,11 @@ const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
 
-// Sektorët dhe vendet — përputhen me hartën e frontend-it (parkimi-intelegjent.html).
-// Sektori A ka sensorë fizikë; B dhe C janë pjesë e maketës pa sensorë (ende).
+// Sektorët dhe vendet — përputhen me hartën e frontend-it.
+// Sektori A ka 6 vende me sensorë HC-SR04 (+1 sensor hyrjeje që s'është vend
+// parkimi — shih docs/HARDWARE.md); B dhe C janë pjesë e maketës pa sensorë.
 const SECTORS = {
-  A: { spots: ["P1", "P2"], hasSensor: true },
+  A: { spots: ["P1", "P2", "P3", "P4", "P5", "P6"], hasSensor: true },
   B: { spots: Array.from({ length: 12 }, (_, i) => `P${i + 1}`), hasSensor: false },
   C: { spots: Array.from({ length: 20 }, (_, i) => `P${i + 1}`), hasSensor: false },
 };
