@@ -15,7 +15,7 @@ npm run seed                # krijon adminin + çelësin API të urës (shfaqet 
 npm start                   # http://localhost:3000
 ```
 
-- Dashboard-i (frontend-i ekzistues): `http://localhost:3000/`
+- Dashboard-i (shërbehet nga dosja `frontend/`): `http://localhost:3000/`
 - Dokumentimi i API-së (Swagger UI): `http://localhost:3000/api/docs`
 - Specifikimi OpenAPI: `http://localhost:3000/api/openapi.json`
 
