@@ -310,10 +310,14 @@ const Admin = (window.Admin = {
     /* === Menaxhimi i QR === */
     async qr(c) {
       const r = await API.spots({ limit: 200 });
-      const base = location.origin;
+      const base = UI.qrBase();
+      const isLocal = /localhost|127\.0\.0\.1/.test(base);
       c.innerHTML = `
         <div class="page-head"><div><h1>Menaxhimi i QR</h1><p>QR-të e vendeve — printohen dhe ngjiten te çdo vend parkimi.</p></div>
           <button class="btn" onclick="window.print()">🖨 Printo faqen</button></div>
+        ${isLocal ? `<div class="alert error">⚠ QR-të po gjenerohen me <b>${UI.esc(base)}</b> — telefonat s'e hapin dot "localhost".
+          Vendos URL-në publike (IP-ja e rrjetit lokal ose domeni) te <b>Cilësimet → URL publike</b> para se t'i printosh.</div>`
+        : `<div class="alert info">QR-të gjenerohen me bazën: <b>${UI.esc(base)}</b></div>`}
         <div class="qr-grid">
           ${r.data.map((s) => `
             <div class="card qr-card">
@@ -615,6 +619,13 @@ const Admin = (window.Admin = {
               </div>
               <div class="hint">Ruhet në shfletues dhe rikthehet në çdo hapje.</div>
             </div>
+            <div class="field">
+              <label for="publicUrl">URL publike (për kodet QR)</label>
+              <input id="publicUrl" placeholder="p.sh. http://192.168.1.50:3000 ose https://parkimi.shembull.com"
+                value="${UI.esc(localStorage.getItem("pi_public_url") || "")}">
+              <div class="hint">QR-të e printuara duhet të hapen nga telefonat — mos lër "localhost".
+                Bosh = përdoret adresa aktuale e shfletuesit.</div>
+            </div>
           </div>
           <div class="card card-pad">
             <h3>Sesioni</h3>
@@ -628,6 +639,11 @@ const Admin = (window.Admin = {
         </div>`;
       UI.$("setGlass").onclick = () => Theme.set("glass");
       UI.$("setDark").onclick = () => Theme.set("dark");
+      UI.$("publicUrl").oninput = (e) => {
+        const v = e.target.value.trim();
+        if (v) localStorage.setItem("pi_public_url", v);
+        else localStorage.removeItem("pi_public_url");
+      };
     },
   },
 

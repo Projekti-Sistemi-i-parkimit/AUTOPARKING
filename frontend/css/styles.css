@@ -133,6 +133,13 @@ a { color: inherit; text-decoration: none; }
 .live-chip.on .live-dot { background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); animation: pulse 2s infinite; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 7px transparent; } }
 
+.demo-chip {
+  padding: 6px 12px; border-radius: 999px;
+  font-size: .72rem; font-weight: 800; letter-spacing: .06em;
+  background: var(--warning-soft); color: var(--warning);
+  border: 1px dashed var(--warning);
+}
+
 .theme-switch { display: flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--card2); }
 .theme-btn { border: 0; background: none; padding: 7px 12px; font-size: .76rem; font-weight: 600; color: var(--muted); cursor: pointer; }
 .theme-btn.on { background: var(--primary); color: var(--on-primary); }

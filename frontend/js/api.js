@@ -97,6 +97,8 @@ const API = (() => {
 
     // Ura (çelësi jepet nga operatori në pajisjen me Arduino — s'ka çelës të koduar)
     pushSensor: (spots, apiKey) => post("/api/sensor", { spots }, { apiKey }),
+    bridgeEvent: (type, apiKey) => post("/api/events", { type }, { apiKey }),
+    bridgeBarrier: (status, apiKey) => post("/api/barrier", { status }, { apiKey }),
 
     // Admin
     adminLogin: async (username, password) => {
