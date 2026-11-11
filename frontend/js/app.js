@@ -40,6 +40,10 @@ const UI = (window.UI = {
 
   // Validimi i targës: 2-3 blloqe alfanumerike me vija ndarëse, p.sh. 01-234-AB
   validPlate: (p) => /^[A-Z0-9]{1,4}(-[A-Z0-9]{1,4}){1,2}$/.test(p),
+
+  // Baza e URL-ve në kodet QR. Konfigurohet te Admin → Cilësimet, që QR-të
+  // e printuara të mos përmbajnë "localhost" (telefonat s'e hapin dot).
+  qrBase: () => (localStorage.getItem("pi_public_url") || "").trim().replace(/\/+$/, "") || location.origin,
 });
 UI.$("modal").addEventListener("click", (e) => { if (e.target.id === "modal") UI.closeModal(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") UI.closeModal(); });
@@ -330,7 +334,7 @@ const Views = {
     const st = d.status === "free" && d.reservation ? "reserved" : d.status;
     const visitor = API.store.visitor;
     const mine = d.reservation && visitor && d.reservation.plate === visitor.plate;
-    const qrUrl = `${location.origin}/#/spot/${encodeURIComponent(key)}`;
+    const qrUrl = `${UI.qrBase()}/#/spot/${encodeURIComponent(key)}`;
 
     UI.modal(`
       <h3>${UI.esc(SECTOR_META[d.sector]?.name || d.sector)} · ${UI.esc(d.label)}</h3>
@@ -575,7 +579,7 @@ const Views = {
     const sector = spotKey ? spotKey.split("-")[0] : null;
     const [first, ...rest] = visitor.name.split(" ");
     // QR-i përmban vetëm një URL me targën — pa të dhëna të tjera personale.
-    const myUrl = `${location.origin}/#/find?plate=${encodeURIComponent(visitor.plate)}`;
+    const myUrl = `${UI.qrBase()}/#/find?plate=${encodeURIComponent(visitor.plate)}`;
 
     v.innerHTML = `
       <div class="page-head">
@@ -643,6 +647,9 @@ document.addEventListener("admin:expired", () => {
   if (Router.current?.route === "admin") location.hash = "#/";
 });
 document.addEventListener("admin:changed", updateAdminButton);
+
+// Treguesi global i modalitetit DEMO — i dukshëm në çdo faqe.
+SerialBridge.onModeChange = () => { UI.$("demoChip").hidden = !SerialBridge.isDemo(); };
 
 Theme.init();
 updateAdminButton();

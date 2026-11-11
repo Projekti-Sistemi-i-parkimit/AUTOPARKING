@@ -106,6 +106,12 @@ flowchart LR
 
 ## 📍 Skema e pinave
 
+> 🔌 **Konfigurimi aktual (6 vende + sensor hyrjeje + servo barriera)** dokumentohet
+> i plotë — bashkë me analizën e ushqimit elektrik dhe protokollin serial JSON —
+> te [`docs/HARDWARE.md`](docs/HARDWARE.md). Firmware:
+> [`arduino/parkimi-7-sensore/`](arduino/parkimi-7-sensore/). Tabela më poshtë
+> është plani origjinal me 8 vende dhe ruhet për referencë.
+
 | Vendi | TRIG | ECHO |
 |:---:|:---:|:---:|
 | P1 | D2 | D3 |
