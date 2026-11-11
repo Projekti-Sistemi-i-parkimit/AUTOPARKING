@@ -2,30 +2,43 @@
 
 /* ============================================================
    Ura e Arduino-s (Web Serial) + modaliteti demo.
-   - Lexon serialin e Arduino-s (9600 baud) dhe dërgon matjet te backend-i
-     me çelësin API që operatori e vendos vetë (ruhet vetëm në këtë pajisje).
-   - Formati i linjës serial (nga firmware ekzistues):
-     "Sensori 1 (D8/D9): 4.2 cm  |  Sensori 2 (D6/D7): Nuk ka matje"
-   - Demo: matje të simuluara, vetëm për prezantim — shënohet qartë në UI.
+   - Lexon serialin e Arduino-s (9600 baud) dhe dërgon të dhënat te
+     backend-i me çelësin API që operatori e vendos vetë (ruhet vetëm
+     në këtë pajisje).
+   - Mbështet DY formate seriale:
+     1) JSON (firmware i ri me 7 sensorë, arduino/parkimi-7-sensore):
+        {"t":"spots","d":[{"s":1,"cm":4.2,"ok":1},…]}
+        {"t":"gate","e":"entry"}
+        {"t":"barrier","s":"open"|"closed"}
+     2) Teksti i prototipit të vjetër me 2 sensorë:
+        "Sensori 1 (D8/D9): 4.2 cm  |  Sensori 2 (D6/D7): Nuk ka matje"
+   - Demo: matje të simuluara VETËM për prezantim — shënohet qartë në UI
+     dhe kurrë nuk paraqitet si lexim real harduerik.
    ============================================================ */
 
 const SerialBridge = (() => {
   const RX_S1 = /Sensori\s*1\s*\(D8\/D9\):\s*(Nuk ka matje|[\d.]+)\s*(cm)?/i;
   const RX_S2 = /Sensori\s*2\s*\(D6\/D7\):\s*(Nuk ka matje|[\d.]+)\s*(cm)?/i;
+  const NUM_SPOTS = 6; // A-P1 … A-P6 (firmware i ri)
 
   const state = {
     port: null, reader: null, reading: false,
     demoTimer: null, demoPhase: 0,
     onLog: () => {}, onStatus: () => {},
     pushedSig: {}, // dedupe: dërgo vetëm kur ndryshon vlera e rrumbullakosur
-    occThreshold: 3, maxRange: 10,
+    lastBarrier: null, // dedupe i gjendjes së barrierës
   };
 
   const supported = () => "serial" in navigator;
   const isConnected = () => !!state.port;
   const isDemo = () => !!state.demoTimer;
 
-  function parseSensor(m) {
+  // Hook global (p.sh. shiriti i navigimit tregon "DEMO") — i veçantë nga
+  // onStatus i faqes së adminit, që rifreskimet e faqes të mos e mbishkruajnë.
+  let onModeChange = () => {};
+  function notifyMode() { state.onStatus(); try { onModeChange(); } catch { /* ignorohet */ } }
+
+  function parseSensorText(m) {
     if (!m || m[1].toLowerCase().startsWith("nuk")) return { cm: null, ok: false };
     const v = parseFloat(m[1]);
     return isNaN(v) ? { cm: null, ok: false } : { cm: v, ok: true };
@@ -50,10 +63,61 @@ const SerialBridge = (() => {
     }
   }
 
-  function ingestLine(line) {
+  async function forwardGate(type) {
+    const key = API.store.bridgeKey;
+    if (!key) return;
+    try { await API.bridgeEvent(type, key); } catch (e) { state.onLog(`Ngjarja e hyrjes dështoi: ${e.message}`, "err"); }
+  }
+
+  async function forwardBarrier(status) {
+    if (state.lastBarrier === status) return;
+    state.lastBarrier = status;
+    const key = API.store.bridgeKey;
+    if (!key) return;
+    try { await API.bridgeBarrier(status, key); } catch (e) { state.onLog(`Barriera dështoi: ${e.message}`, "err"); }
+  }
+
+  // Formati i ri JSON i firmware-it me 7 sensorë.
+  function ingestJson(line) {
+    let msg;
+    try { msg = JSON.parse(line); } catch { return false; }
+    if (!msg || typeof msg.t !== "string") return false;
+
+    if (msg.t === "spots" && Array.isArray(msg.d)) {
+      const readings = msg.d
+        .filter((x) => Number.isInteger(x.s) && x.s >= 1 && x.s <= NUM_SPOTS)
+        .map((x) => ({
+          key: `A-P${x.s}`,
+          cm: x.ok && typeof x.cm === "number" && x.cm >= 0 ? x.cm : null,
+          ok: !!x.ok,
+        }));
+      if (readings.length) {
+        state.onLog(
+          readings.map((r) => `${r.key}:${r.cm == null ? "—" : r.cm.toFixed(1) + "cm"}`).join(" "),
+          readings.every((r) => r.ok) ? "ok" : "err"
+        );
+        push(readings);
+      }
+      return true;
+    }
+    if (msg.t === "gate" && (msg.e === "entry" || msg.e === "exit")) {
+      state.onLog(`Hyrja: u detektua veturë (${msg.e})`, "ok");
+      forwardGate(msg.e);
+      return true;
+    }
+    if (msg.t === "barrier" && (msg.s === "open" || msg.s === "closed")) {
+      state.onLog(`Barriera: ${msg.s === "open" ? "u hap" : "u mbyll"}`, "ok");
+      forwardBarrier(msg.s);
+      return true;
+    }
+    return true; // JSON i vlefshëm por tip i panjohur — mos e provo si tekst
+  }
+
+  // Formati i vjetër tekstual (prototipi me 2 sensorë).
+  function ingestText(line) {
     if (!/Sensori\s*1/i.test(line)) return;
-    const s1 = parseSensor(line.match(RX_S1));
-    const s2 = parseSensor(line.match(RX_S2));
+    const s1 = parseSensorText(line.match(RX_S1));
+    const s2 = parseSensorText(line.match(RX_S2));
     state.onLog(line.trim(), s1.ok && s2.ok ? "ok" : "err");
     push([
       { key: "A-P1", cm: s1.cm, ok: s1.ok },
@@ -61,11 +125,16 @@ const SerialBridge = (() => {
     ]);
   }
 
+  function ingestLine(line) {
+    if (line.startsWith("{")) { if (ingestJson(line)) return; }
+    ingestText(line);
+  }
+
   async function connect() {
     if (!supported()) throw new Error("Web Serial s'mbështetet — përdor Chrome ose Edge në desktop");
     state.port = await navigator.serial.requestPort();
     await state.port.open({ baudRate: 9600 });
-    state.onStatus();
+    notifyMode();
     state.onLog("USB serial u lidh me 9600 baud", "ok");
     readLoop();
   }
@@ -102,25 +171,29 @@ const SerialBridge = (() => {
     try { if (state.reader) await state.reader.cancel(); } catch { /* ignorohet */ }
     try { if (state.port) await state.port.close(); } catch { /* ignorohet */ }
     state.port = null; state.reader = null;
-    state.onStatus();
+    notifyMode();
     state.onLog("USB serial u shkëput");
   }
 
+  // Modaliteti DEMO — simulon 6 sensorët e Sektorit A. Asnjëherë nuk
+  // paraqitet si harduer real: shënohet në log, në faqen Arduino dhe
+  // me shenjën "DEMO" në shiritin e navigimit.
   function startDemo() {
     if (state.demoTimer) return;
     state.demoPhase = 0;
     state.onLog("Modaliteti DEMO — matje të simuluara (jo nga hardueri)", "err");
     state.demoTimer = setInterval(() => {
       const t = ++state.demoPhase;
-      const p1 = +(1.5 + 1.2 * Math.sin(t / 2)).toFixed(1);
-      const p2 = +(5.0 + 3.5 * Math.sin(t / 3 + 1)).toFixed(1);
-      state.onLog(`[demo] Sensori 1: ${p1} cm | Sensori 2: ${p2} cm`, "ok");
-      push([
-        { key: "A-P1", cm: p1, ok: true },
-        { key: "A-P2", cm: p2, ok: true },
-      ]);
+      const readings = [];
+      for (let s = 1; s <= NUM_SPOTS; s++) {
+        // valë të ndryshme për çdo vend: disa kalojnë pragun 3 cm, disa jo
+        const cm = +(4.5 + 3.2 * Math.sin(t / (2 + s * 0.7) + s * 1.3)).toFixed(1);
+        readings.push({ key: `A-P${s}`, cm: Math.max(0.5, cm), ok: true });
+      }
+      state.onLog(`[demo] ${readings.map((r) => `${r.key}:${r.cm}cm`).join(" ")}`, "ok");
+      push(readings);
     }, 1800);
-    state.onStatus();
+    notifyMode();
   }
 
   function stopDemo() {
@@ -128,7 +201,7 @@ const SerialBridge = (() => {
     clearInterval(state.demoTimer);
     state.demoTimer = null;
     state.onLog("Demo u ndal");
-    state.onStatus();
+    notifyMode();
   }
 
   return {
@@ -137,5 +210,6 @@ const SerialBridge = (() => {
       if (onLog) state.onLog = onLog;
       if (onStatus) state.onStatus = onStatus;
     },
+    set onModeChange(fn) { onModeChange = typeof fn === "function" ? fn : () => {}; },
   };
 })();
