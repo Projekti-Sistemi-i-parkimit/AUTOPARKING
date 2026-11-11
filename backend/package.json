@@ -8,6 +8,12 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/db/seed.js",
+    "seed:demo": "node scripts/seed-demo.js",
+    "db:backup": "node scripts/db.js backup",
+    "db:restore": "node scripts/db.js restore",
+    "db:check": "node scripts/db.js check",
+    "db:purge": "node scripts/db.js purge",
+    "db:snapshot": "node scripts/schema-snapshot.js",
     "test": "node --test tests/*.test.js"
   },
   "engines": {
