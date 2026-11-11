@@ -79,5 +79,8 @@ test("GET /api/spots/:key/readings ruan historikun me faqëzim", async () => {
 test("GET /api/sensors kthen vetëm vendet me sensor", async () => {
   const r = await t.api("GET", "/api/sensors");
   assert.equal(r.status, 200);
-  assert.deepEqual(r.json.data.map((s) => s.spot_key).sort(), ["A-P1", "A-P2"]);
+  assert.deepEqual(
+    r.json.data.map((s) => s.spot_key).sort(),
+    ["A-P1", "A-P2", "A-P3", "A-P4", "A-P5", "A-P6"]
+  );
 });

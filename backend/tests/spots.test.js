@@ -26,7 +26,7 @@ test("GET /api/spots kthen listë të faqëzuar", async () => {
 test("GET /api/spots filtron sipas sektorit dhe statusit", async () => {
   const r = await t.api("GET", "/api/spots?sector=A");
   assert.equal(r.status, 200);
-  assert.equal(r.json.total, 2);
+  assert.equal(r.json.total, 6);
   assert.ok(r.json.data.every((s) => s.sector === "A"));
 
   const bad = await t.api("GET", "/api/spots?status=invalid");
@@ -49,7 +49,7 @@ test("GET /api/spots/:key kthen detaje; 404 për vend që s'ekziston", async () 
 test("GET /api/stats llogarit statistikat", async () => {
   const r = await t.api("GET", "/api/stats?sector=A");
   assert.equal(r.status, 200);
-  assert.equal(r.json.total, 2);
+  assert.equal(r.json.total, 6);
   assert.equal(typeof r.json.occupancy_pct, "number");
 });
 
