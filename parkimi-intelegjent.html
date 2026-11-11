@@ -126,6 +126,23 @@ main{flex:1;min-width:0;padding:28px 36px;display:flex;flex-direction:column;gap
 .mbox h3{margin-bottom:14px}.mrow{display:flex;gap:16px;margin-bottom:16px}.mrow p{margin-bottom:6px;font-size:.9rem}
 .qrbig{width:130px;height:130px;background:#fff;padding:8px;border-radius:10px;flex-shrink:0;line-height:0}.qrbig svg{width:100%;height:100%}
 button.chip{cursor:pointer;color:var(--text)}
+.srcbar{display:flex;gap:10px;align-items:center;margin:16px 20px 0;padding:10px 14px;border-radius:12px;font-size:.84rem;border:1px solid var(--border);background:var(--panel2);color:var(--muted)}
+.tag{font-size:.7rem;font-weight:800;letter-spacing:.06em;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.tag.live{background:var(--free);color:#06210f}.tag.demo{background:#8b7cff;color:#fff}.tag.off{background:var(--warn);color:#fff}
+.srcbar.live{border-color:var(--free)}.srcbar.demo{border-color:#8b7cff}
+.chip.wait{color:#ffb020}.chip.wait .dot{background:#ffb020}
+.tab .demo{font-size:.7rem;color:#8b7cff;font-weight:700}
+.stall .foot{display:flex;flex-direction:column;align-items:center;gap:4px;z-index:2}
+.stall .cm.big{display:block!important;font-size:.8rem;font-weight:700;color:var(--text)}
+.leds{display:flex;gap:5px}.leds i{width:9px;height:9px;border-radius:50%;background:#555}
+.leds i.g.on{background:var(--free);box-shadow:0 0 8px var(--free)}.leds i.r.on{background:var(--occ);box-shadow:0 0 8px var(--occ)}
+.sn{padding:12px 0;border-top:1px solid var(--border)}.sn:first-child{border-top:0;padding-top:0}
+.sn-h{display:flex;justify-content:space-between;align-items:center;gap:8px}.sn-h small{color:var(--muted);font-weight:400}
+.sn-d{font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums;margin:6px 0}.sn-d small{font-size:.8rem;color:var(--muted);font-weight:400}
+.meter{position:relative;height:8px;border-radius:4px;background:var(--panel2)}.meter i{position:absolute;left:0;top:0;bottom:0;border-radius:4px;background:var(--warn)}
+.meter i.free{background:var(--free)}.meter i.occupied{background:var(--occ)}.meter em{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--accent)}
+.sn-t,.hint{font-size:.74rem;color:var(--muted);margin-top:6px}
+#sensCard[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -165,6 +182,7 @@ button.chip{cursor:pointer;color:var(--text)}
           <span><i style="background:var(--warn)"></i>Pa sinjal</span>
         </div>
       </div>
+      <div class="srcbar" id="srcbar"></div>
       <div class="lot"><div class="plane">
         <div class="row top" id="rowTop"></div>
         <div class="lane"><div class="entry">HYRJE</div><span>➜</span><span>➜</span><span>➜</span><span>➜</span></div>
@@ -182,6 +200,12 @@ button.chip{cursor:pointer;color:var(--text)}
         <div class="st"><span>Pa sinjal</span><b class="w" id="statErr">0</b></div>
       </div>
 
+      <div class="card pad" id="sensCard">
+        <h3>Sensorët HC-SR04 · Sektori A</h3>
+        <div id="sensList"></div>
+        <div class="hint" id="sensHint"></div>
+      </div>
+
       <div class="card pad">
         <h3>Kontrolli</h3>
         <div class="btns">
@@ -191,8 +215,8 @@ button.chip{cursor:pointer;color:var(--text)}
           <button class="btn" id="btnTheme">Ndrysho temën</button>
         </div>
         <div class="set">
-          <div><label for="maxRange">Max (cm)</label><input type="number" id="maxRange" value="10" min="2" max="100" step="0.5"></div>
-          <div><label for="occThreshold">I zënë ≤ (cm)</label><input type="number" id="occThreshold" value="3" min="1" max="100" step="0.5"></div>
+          <div class="hint" style="margin:0;align-self:end">Vetëm për shfaqje dhe demo. Statusi real vjen nga Arduino (DISTANCA_E_PARKUAR).</div>
+          <div><label for="occThreshold">Pragu i zënies (cm)</label><input type="number" id="occThreshold" value="3" min="1" max="100" step="0.5"></div>
         </div>
         <div style="margin-top:12px"><label for="baseUrl" style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:5px">Linku publik i faqes (për QR)</label><input id="baseUrl" placeholder="https://parkimi.shembull.com" style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text)"></div>
         <div style="margin-top:12px"><label for="apiKey" style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:5px">Çelësi i serverit (vetëm kompjuteri me Arduino)</label><input id="apiKey" type="password" autocomplete="off" style="width:100%;padding:9px 10px;border-radius:10px;border:1px solid var(--border);background:var(--panel2);color:var(--text)"></div>
@@ -222,24 +246,29 @@ const SECTORS = {
   B: { name: "Sektori B", subtitle: "Sektori B, Kati B2", floor: "Kati B2", live: false,
        layout: { top: ids("P",1,6), bottom: ids("P",7,12) } },
   C: { name: "Sektori C", subtitle: "Sektori C, Parkingu i jashtëm", floor: "I jashtëm", live: false,
-       layout: { top: ids("P",1,10), bottom: ids("P",11,20) } }
+       layout: { top: ids("P",1,10), bottom: ids("P",11,20) } },
+  D: { name: "Sektori D", subtitle: "Sektori D, Kati 1", floor: "Kati 1", live: false,
+       layout: { top: ids("P",1,8), bottom: ids("P",9,16) } }
 };
 for (const k in SECTORS) SECTORS[k].spaces = [...SECTORS[k].layout.top, ...SECTORS[k].layout.bottom];
 
-const state = { activeSector: "A", sectorStates: {}, maxRange: 10, occThreshold: 3,
+const state = { activeSector: "A", sectorStates: {}, occThreshold: 3, srcA: null, lastRx: 0, connectedAt: 0, warned: false, piped: null,
   serialPort: null, reader: null, reading: false, demoInterval: null, demoPhase: 0 };
 
 for (const k in SECTORS) {
   state.sectorStates[k] = {};
   SECTORS[k].spaces.forEach((id, i) => {
     if (k === "A") { state.sectorStates[k][id] = { status: "unknown", cm: null, sensorOk: false }; return; }
-    const free = (i * 7 + (k === "C" ? 3 : 1)) % 4 === 0;
+    const free = (i * 7 + ({ B: 1, C: 3, D: 5 }[k])) % 4 === 0;
     state.sectorStates[k][id] = { status: free ? "free" : "occupied", cm: free ? 6.2 : 1.8, sensorOk: true };
   });
 }
 
 const COLORS = ["#e9ecf1","#1d2230","#a9b0bc","#c0262d","#2b5fb4","#4a5160","#e8e3d0"];
 const $ = id => document.getElementById(id);
+const STALE_MS = 5000;
+const srcOf = k => k !== "A" ? "demo" : (state.srcA === "serial" || state.srcA === "server") ? "sensor" : state.srcA === "demo" ? "demo" : "none";
+function resetA() { SECTORS.A.spaces.forEach(id => state.sectorStates.A[id] = { status: "unknown", cm: null, sensorOk: false, updatedAt: 0 }); }
 
 /* ================= ORA ================= */
 function updateDateTime() {
@@ -259,7 +288,7 @@ function renderTabs() {
     const s = SECTORS[k];
     const b = document.createElement("button");
     b.className = "tab" + (k === state.activeSector ? " on" : "");
-    b.innerHTML = `<div><b>${s.name}</b><small>${s.floor}, ${s.spaces.length} vende</small>${s.live ? '<div class="live">Sensorë live</div>' : ''}</div><div class="n">${freeCount(k)}</div>`;
+    b.innerHTML = `<div><b>${s.name}</b><small>${s.floor}, ${s.spaces.length} vende</small>${tabTag(k)}</div><div class="n">${freeCount(k)}</div>`;
     b.onclick = () => { state.activeSector = k; renderAll(); };
     $("tabs").appendChild(b);
   }
@@ -287,7 +316,7 @@ function stall(id, d, idx, rev) {
   const car = `<div class="mv${at}"><div class="car${rev ? " rev" : ""}" style="--c:${COLORS[(idx * 3 + id.length) % COLORS.length]}">${carHTML()}</div></div>`;
   const show = d.status === "occupied" || (anim && anim.type === "out");
   el.innerHTML = (show ? car : d.status === "free" ? `<div class="p">${r ? "R" : "P"}</div>` : `<div class="p" style="color:var(--warn)">?</div>`)
-    + `<span class="id">${id}</span><div class="qr">${qrSvg(spotUrl(k, id), 2)}</div>`;
+    + `<span class="id">${id}</span>${SECTORS[k].live ? liveFoot(d) : '<div class="qr">' + qrSvg(spotUrl(k, id), 2) + "</div>"}`;
   el.title = "Kliko për detaje dhe rezervim";
   el.onclick = () => openSpot(k, id);
   return el;
@@ -296,6 +325,7 @@ function stall(id, d, idx, rev) {
 function fillRow(el, list, rev) {
   if (!list.length) { el.style.display = "none"; return; }
   el.style.display = "grid";
+  el.style.maxWidth = list.length < 4 ? list.length * 210 + "px" : "none"; el.style.margin = "0 auto";
   el.style.gridTemplateColumns = `repeat(${list.length},1fr)`;
   el.innerHTML = "";
   list.forEach((id, i) => el.appendChild(stall(id, state.sectorStates[state.activeSector][id], i, rev)));
@@ -323,7 +353,52 @@ function renderStats() {
   $("ring").style.setProperty("--p", pct);
 }
 
-function renderAll() { if (apiKey && (state.serialPort || state.demoInterval)) pushStates(); syncSessions(); renderTabs(); renderMap(); renderStats(); renderHist(); }
+function renderAll() { if (apiKey && state.srcA === "serial") pushStates(); syncSessions(); renderTabs(); renderMap(); renderStats(); renderHist(); renderSrc(); renderLink(); renderSensors(); }
+
+const tabTag = k => { const s = srcOf(k); return s === "sensor" ? '<div class="live">● Live · sensorë</div>' : s === "demo" ? '<div class="demo">DEMO</div>' : '<div class="live" style="color:var(--muted)">Pa lidhje</div>'; };
+const liveFoot = d => `<div class="foot"><div class="cm big">${d.cm === null ? (d.stale ? "Të vjetruara" : "Pa sinjal") : d.cm.toFixed(1) + " cm"}</div><div class="leds"><i class="g${d.status === "free" ? " on" : ""}"></i><i class="r${d.status === "occupied" ? " on" : ""}"></i></div></div>`;
+
+function renderSrc() {
+  const k = state.activeSector, s = srcOf(k);
+  const m = { sensor: ["live", "live", "LIVE", "Matje reale nga sensorët HC-SR04 përmes Arduino Uno (USB, 9600 baud)."],
+    demo: ["demo", "demo", "DEMO", k === "A" ? "Të dhëna të simuluara, jo matje reale nga sensorët." : "Të dhëna të simuluara. Sektori nuk ka sensorë fizikë të lidhur; shërben për provën e hartës dhe QR kodit."],
+    none: ["", "off", "PA LIDHJE", "Lidh Arduino me USB për matje reale. Deri atëherë vendet shfaqen “Pa sinjal”."] }[s];
+  $("srcbar").className = "srcbar " + m[0];
+  $("srcbar").innerHTML = `<span class="tag ${m[1]}">${m[2]}</span><span>${m[3]}</span>`;
+}
+
+function renderLink() {
+  const c = $("onlineStatus"), t = $("onlineText"); c.className = "chip";
+  if (!state.serialPort) { const sv = state.srcA === "server"; if (sv) c.classList.add("on"); t.textContent = sv ? "Server online" : "Arduino i shkëputur"; return; }
+  if (state.lastRx && Date.now() - state.lastRx < STALE_MS) { c.classList.add("on"); t.textContent = "Arduino live"; }
+  else { c.classList.add("wait"); t.textContent = state.lastRx ? "Të dhëna të vjetruara" : "Duke pritur të dhëna…"; }
+}
+
+function renderSensors() {
+  $("sensCard").hidden = state.activeSector !== "A";
+  const now = Date.now(); let noEcho = false;
+  $("sensList").innerHTML = SECTORS.A.spaces.map(id => {
+    const d = state.sectorStates.A[id], pin = id === "P1" ? "Trig D8 · Echo D9" : "Trig D6 · Echo D7";
+    if (d.noEcho && !d.stale) noEcho = true;
+    const lbl = { free: "I lirë", occupied: "I zënë", unknown: d.stale ? "Të vjetruara" : "Pa sinjal" }[d.status];
+    const cls = d.status === "free" ? "live" : d.status === "occupied" ? "" : "off";
+    const pct = d.cm === null ? 0 : Math.min(d.cm, 20) / 20 * 100;
+    const ago = d.updatedAt ? `Përditësuar para ${Math.round((now - d.updatedAt) / 1000)} s` : "Pa lexime";
+    return `<div class="sn"><div class="sn-h"><b>${id} <small>${pin}</small></b><span class="tag ${cls}"${d.status === "occupied" ? ' style="background:var(--occ);color:#fff"' : ""}>${lbl}</span></div><div class="sn-d">${d.cm === null ? "—" : d.cm.toFixed(1)} <small>cm</small></div><div class="meter"><i class="${d.status}" style="width:${pct}%"></i><em style="left:${state.occThreshold / 20 * 100}%"></em></div><div class="sn-t">${ago}</div></div>`;
+  }).join("");
+  $("sensHint").textContent = noEcho ? "Pa jehonë: kontrollo Trig/Echo, VCC 5 V dhe GND të përbashkët; testo me objekt të sheshtë 10–20 cm para sensorit." : "";
+}
+
+setInterval(() => {
+  if (state.serialPort) {
+    const now = Date.now(); let ch = false;
+    SECTORS.A.spaces.forEach(id => { const d = state.sectorStates.A[id];
+      if (d.updatedAt && now - d.updatedAt > STALE_MS && !d.stale) { state.sectorStates.A[id] = { status: "unknown", cm: null, sensorOk: false, updatedAt: d.updatedAt, stale: true }; ch = true; } });
+    if (ch) { log("Të dhëna të vjetruara nga Arduino", "err"); renderAll(); }
+    if (!state.lastRx && !state.warned && now - state.connectedAt > STALE_MS) { state.warned = true; log("Asnjë e dhënë: kontrollo që sketch-i po punon, 9600 baud dhe porta e saktë.", "err"); }
+  }
+  renderLink(); renderSensors();
+}, 1000);
 
 /* ================= LOG ================= */
 function log(msg, cls) {
@@ -335,121 +410,109 @@ function log(msg, cls) {
   while ($("log").childNodes.length > 200) $("log").removeChild($("log").firstChild);
 }
 
-/* ================= KLASIFIKIMI ================= */
+/* ================= KLASIFIKIMI (vetëm për demo) ================= */
 function classify(cm, ok) {
   if (!ok || cm === null || cm < 0) return "unknown";
-  if (cm <= state.occThreshold) return "occupied";
-  if (cm <= state.maxRange) return "free";
-  return "unknown";
+  return cm <= state.occThreshold ? "occupied" : "free";
 }
 
 /* ================= PARSERI I ARDUINO ================= */
-const RX_S1 = /Sensori\s*1\s*\(D8\/D9\):\s*(Nuk ka matje|[\d.]+)\s*(cm)?/i;
-const RX_S2 = /Sensori\s*2\s*\(D6\/D7\):\s*(Nuk ka matje|[\d.]+)\s*(cm)?/i;
-
-function parseSensor(m) {
-  if (!m || m[1].toLowerCase().startsWith("nuk")) return { cm: null, sensorOk: false };
-  const v = parseFloat(m[1]);
-  return isNaN(v) ? { cm: null, sensorOk: false } : { cm: v, sensorOk: true };
-}
-
+// Formati i firmware-it: "Parkimi P1: I ZENE | Distanca: 2.4 cm"  ose  "... | Distanca: Nuk ka matje"
+const RX_LINE = /Parkimi\s*P(\d+)\s*:\s*(I\s*LIR[EË]|I\s*Z[EË]NE)\s*\|\s*Distanca\s*:\s*(Nuk\s*ka\s*matje|[\d.,]+)/i;
+let junk = 0;
 function ingestReading(line) {
-  if (!/Sensori\s*1/i.test(line)) return;
-  const s1 = parseSensor(line.match(RX_S1)), s2 = parseSensor(line.match(RX_S2));
-  const apply = (id, s) => { state.sectorStates.A[id] = { cm: s.cm, sensorOk: s.sensorOk, status: classify(s.cm, s.sensorOk) }; };
-  apply("P1", s1); apply("P2", s2);
-  log(`${line.trim()}  →  P1:${state.sectorStates.A.P1.status}  P2:${state.sectorStates.A.P2.status}`, (s1.sensorOk && s2.sensorOk) ? "ok" : "err");
+  const m = line.match(RX_LINE);
+  if (!m) { if (/INTELIGJENT/i.test(line)) log("Arduino u nis: " + line.trim(), "ok"); else if (/[A-Za-z]{4}/.test(line) && junk++ < 5) log("Rresht i panjohur: " + line, "err"); return; }
+  const id = "P" + m[1], cur = state.sectorStates.A[id];
+  if (!cur) { log("Vend i panjohur në Sektorin A: " + id, "err"); return; }
+  const v = parseFloat(m[3].replace(",", ".")), ok = !/^nuk/i.test(m[3]) && !isNaN(v), now = Date.now();
+  const status = !ok ? "unknown" : /^I\s*Z/i.test(m[2]) ? "occupied" : "free";   // statusi vjen nga firmware (njësoj si LED-at)
+  state.sectorStates.A[id] = { status, cm: ok ? v : null, sensorOk: ok, noEcho: !ok, updatedAt: now };
+  state.lastRx = now;
+  if (cur.status !== status) log(`${id}: ${{ free: "I lirë", occupied: "I zënë", unknown: "Pa sinjal (nuk ka jehonë)" }[status]}${ok ? " · " + v.toFixed(1) + " cm" : ""}`, ok ? "ok" : "err");
   renderAll();
 }
 
 /* ================= WEB SERIAL ================= */
 async function connectSerial() {
-  if (!("serial" in navigator)) { alert("Web Serial nuk mbështetet. Përdor Chrome ose Edge në desktop."); return; }
-  try {
-    state.serialPort = await navigator.serial.requestPort();
-    await state.serialPort.open({ baudRate: 9600 });
-    $("onlineStatus").classList.add("on");
-    $("onlineText").textContent = "Sistemi online";
-    $("btnConnect").disabled = true; $("btnDisconnect").disabled = false;
-    log("USB serial u lidh me 9600 baud", "ok");
-    readLoop();
-  } catch (e) { log("Lidhja dështoi: " + e.message, "err"); }
+  if (!("serial" in navigator) || !window.isSecureContext) { alert("Web Serial kërkon Chrome ose Edge në desktop, me HTTPS ose localhost."); return; }
+  if (state.serialPort) return;
+  let port;
+  try { port = await navigator.serial.requestPort(); } catch (_) { log("Zgjedhja e portës u anulua"); return; }
+  openPort(port);
 }
-
-async function readLoop() {
-  if (!state.serialPort) return;
-  state.reading = true;
+async function openPort(port) {
+  try { await port.open({ baudRate: 9600 }); }
+  catch (e) { log("Porta nuk u hap: " + e.message + ". Mbyll Serial Monitor-in e Arduino IDE ose programet që e përdorin portën.", "err"); return; }
+  state.serialPort = port; state.srcA = "serial"; state.lastRx = 0; state.connectedAt = Date.now(); state.warned = false;
+  resetA();
+  $("btnConnect").disabled = true; $("btnDisconnect").disabled = false;
+  log("USB serial u lidh me 9600 baud", "ok");
+  renderAll(); readLoop(port);
+}
+async function readLoop(port) {
   const decoder = new TextDecoderStream();
-  state.serialPort.readable.pipeTo(decoder.writable).catch(() => {});
+  state.piped = port.readable.pipeTo(decoder.writable).catch(() => {});
   const reader = decoder.readable.getReader();
-  state.reader = reader;
+  state.reader = reader; state.reading = true;
   let buffer = "";
   try {
-    while (state.reading) {
+    while (true) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += value;
       let idx;
-      while ((idx = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, idx).trim();
-        buffer = buffer.slice(idx + 1);
-        if (line) ingestReading(line);
-      }
+      while ((idx = buffer.indexOf("\n")) >= 0) { const line = buffer.slice(0, idx).trim(); buffer = buffer.slice(idx + 1); if (line) ingestReading(line); }
     }
   } catch (e) { if (state.reading) log("Gabim serial: " + e.message, "err"); }
-  finally { try { reader.releaseLock(); } catch (_) {} state.reading = false; }
+  finally { try { reader.releaseLock(); } catch (_) {} }
+  if (state.reading && state.serialPort === port) closePort("Lidhja me Arduino u ndërpre. Kontrollo kabllon USB.", "err");
 }
-
-async function disconnectSerial() {
-  state.reading = false;
+async function closePort(msg, cls) {
+  const port = state.serialPort; if (!port) return;
+  state.reading = false; state.serialPort = null;
   try { if (state.reader) await state.reader.cancel(); } catch (_) {}
-  try { if (state.serialPort) await state.serialPort.close(); } catch (_) {}
-  state.serialPort = null; state.reader = null;
-  $("onlineStatus").classList.remove("on");
-  $("onlineText").textContent = "Sistemi offline";
+  try { await Promise.race([state.piped, new Promise(r => setTimeout(r, 800))]); } catch (_) {}
+  try { await port.close(); } catch (_) {}
+  state.reader = null; state.srcA = null; resetA();
   $("btnConnect").disabled = false; $("btnDisconnect").disabled = true;
-  log("USB serial u shkëput");
+  log(msg, cls); renderAll();
 }
 $("btnConnect").onclick = connectSerial;
-$("btnDisconnect").onclick = disconnectSerial;
+$("btnDisconnect").onclick = () => closePort("USB serial u shkëput");
+if ("serial" in navigator) {
+  navigator.serial.addEventListener("disconnect", e => { if (e.target === state.serialPort) closePort("Arduino u shkëput nga USB.", "err"); });
+  navigator.serial.getPorts().then(p => { if (p.length === 1) { log("Po lidhem me portën e lejuar më parë…"); openPort(p[0]); } }).catch(() => {});
+}
 
-/* ================= DEMO ================= */
+/* ================= DEMO (të dhëna të simuluara) ================= */
 function toggleDemo() {
   if (state.demoInterval) {
     clearInterval(state.demoInterval); state.demoInterval = null;
-    $("btnDemo").textContent = "Fillo demon"; log("Demo u ndal"); return;
+    if (state.srcA === "demo") { state.srcA = null; resetA(); }
+    $("btnDemo").textContent = "Fillo demon"; log("Demo u ndal"); renderAll(); return;
   }
   $("btnDemo").textContent = "Ndalo demon";
-  log("Demo aktive (lexime të simuluara)", "err");
-  state.demoPhase = 0;
+  log("Demo aktive: të dhëna të simuluara, jo matje reale", "err");
+  state.demoPhase = 0; if (!state.serialPort && state.srcA !== "server") state.srcA = "demo";
   state.demoInterval = setInterval(() => {
     const t = ++state.demoPhase;
-    const p1 = 1.5 + 1.2 * Math.sin(t / 2), p2 = 5.0 + 3.5 * Math.sin(t / 3 + 1);
-    state.sectorStates.A.P1 = { cm: p1, sensorOk: true, status: classify(p1, true) };
-    state.sectorStates.A.P2 = { cm: p2, sensorOk: true, status: classify(p2, true) };
-    ["B","C"].forEach(k => {
+    if (state.srcA === "demo") {
+      const v = { P1: 3.5 + 3 * Math.sin(t / 2), P2: 9 + 6 * Math.sin(t / 3 + 1) };
+      for (const id in v) state.sectorStates.A[id] = { cm: v[id], sensorOk: true, status: classify(v[id], true), updatedAt: Date.now() };
+    }
+    ["B","C","D"].forEach(k => {
       const id = SECTORS[k].spaces[Math.floor(Math.random() * SECTORS[k].spaces.length)];
       const free = state.sectorStates[k][id].status === "occupied";
       state.sectorStates[k][id] = { status: free ? "free" : "occupied", cm: free ? 6.2 : 1.8, sensorOk: true };
     });
-    log(`Sensori 1: ${p1.toFixed(1)} cm | Sensori 2: ${p2.toFixed(1)} cm`, "ok");
     renderAll();
   }, 1500);
 }
 $("btnDemo").onclick = toggleDemo;
 
 /* ================= CILËSIMET ================= */
-function readSettings() {
-  const maxV = parseFloat($("maxRange").value), occV = parseFloat($("occThreshold").value);
-  if (!isNaN(maxV) && maxV >= 2 && maxV <= 100) state.maxRange = maxV;
-  if (!isNaN(occV) && occV >= 1 && occV <= 100 && occV < state.maxRange) state.occThreshold = occV;
-  for (const id in state.sectorStates.A) {
-    const s = state.sectorStates.A[id];
-    if (s.cm !== null && s.sensorOk) s.status = classify(s.cm, true);
-  }
-  renderAll();
-}
-$("maxRange").addEventListener("input", readSettings);
+function readSettings() { const v = parseFloat($("occThreshold").value); if (!isNaN(v) && v >= 1 && v <= 100) state.occThreshold = v; renderAll(); }
 $("occThreshold").addEventListener("input", readSettings);
 
 /* ================= TEMA ================= */
@@ -484,7 +547,7 @@ function syncSessions() {
     const kk = key(k, id), st = state.sectorStates[k][id].status, p = prev[kk]; prev[kk] = st;
     if (SERVER) { if (p && p !== st) { if (st === "occupied") mv[kk] = { t: now, type: "in" }; else if (p === "occupied" && st !== "unknown") mv[kk] = { t: now, type: "out" }; } return; }
     const open = db.sessions.find(s => s.key === kk && !s.end);
-    if (st === "occupied" && !open) {
+    if (st === "occupied" && !open && srcOf(k) !== "demo") {
       const r = resOf(k, id);
       db.sessions.push({ key: kk, name: r ? r.name : "Vizitor", plate: r ? r.plate : "-", start: now, until: r ? r.end : null, end: null });
       if (r) db.res = db.res.filter(x => x !== r);
@@ -501,7 +564,7 @@ function syncSessions() {
 }
 
 function renderHist() {
-  const now = Date.now(), l = db.sessions.slice(-6).reverse();
+  const now = Date.now(), l = db.sessions.filter(s => SECTORS[s.key.split("-")[0]] && SECTORS[s.key.split("-")[0]].live).slice(-6).reverse();
   $("hist").innerHTML = l.length ? l.map(s => `<div class="st"><span>${esc(s.name)} · ${s.key}</span><b>${fmt((s.end || now) - s.start)}${s.end ? "" : " ●"}</b></div>`).join("") : "Ende pa qëndrime.";
 }
 
@@ -518,15 +581,15 @@ async function pull() {
   try {
     const j = await api("/api/state"); SERVER = true;
     if (!state.serialPort && !state.demoInterval)
-      for (const kk in j.spots) { const [k, id] = kk.split("-"), o = j.spots[kk]; if (state.sectorStates[k] && state.sectorStates[k][id]) state.sectorStates[k][id] = { status: o.status, cm: o.cm, sensorOk: o.status !== "unknown" }; }
+      for (const kk in j.spots) { const [k, id] = kk.split("-"), o = j.spots[kk]; if (state.sectorStates[k] && state.sectorStates[k][id]) state.sectorStates[k][id] = { status: o.status, cm: o.cm, sensorOk: o.status !== "unknown", updatedAt: Date.now() }; if (k === "A") state.srcA = "server"; }
     db.res = j.res; db.sessions = j.sessions; renderAll();
-  } catch (_) { SERVER = false; }
+  } catch (_) { SERVER = false; if (state.srcA === "server") { state.srcA = null; resetA(); renderAll(); } }
 }
 const pushed = {};
 async function pushStates() {
   const list = [];
   for (const k in SECTORS) SECTORS[k].spaces.forEach(id => {
-    if (k !== "A" && !state.demoInterval) return;
+    if (k !== "A") return;
     const d = state.sectorStates[k][id], kk = key(k, id), sig = d.status + (d.cm === null ? "" : Math.round(d.cm));
     if (pushed[kk] !== sig) { pushed[kk] = sig; list.push({ key: kk, status: d.status, cm: d.cm }); }
   });
@@ -568,7 +631,7 @@ function openSpot(k, id) {
   const d = state.sectorStates[k][id], kk = key(k, id), r = resOf(k, id), me = db.me, now = Date.now();
   const open = db.sessions.find(s => s.key === kk && !s.end);
   pendingSpot = { k, id };
-  let b = `<h3>${SECTORS[k].name} · ${id}</h3><div class="mrow"><div class="qrbig">${qrSvg(spotUrl(k, id), 4)}</div><div>`;
+  let b = `<h3>${SECTORS[k].name} · ${id}</h3><div class="mrow">${SECTORS[k].live ? "" : `<div class="qrbig">${qrSvg(spotUrl(k, id), 4)}</div>`}<div>`;
   b += `<p>Gjendja: <b>${{ free: "I lirë", occupied: "I zënë", unknown: "Pa sinjal" }[d.status]}</b></p>`;
   if (d.cm !== null) b += `<p>Distanca: ${d.cm.toFixed(1)} cm</p>`;
   if (open) b += `<p>Në parking: <b>${esc(open.name)}</b></p><p>Qëndron prej: <b>${fmt(now - open.start)}</b></p>`
