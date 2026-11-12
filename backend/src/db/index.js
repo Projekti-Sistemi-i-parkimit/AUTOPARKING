@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
+const { runMigrations } = require("./migrate");
 
 // Sektorët dhe vendet — përputhen me hartën e frontend-it.
 // Sektori A ka 6 vende me sensorë HC-SR04 (+1 sensor hyrjeje që s'është vend
@@ -21,7 +22,13 @@ function createDb(dbPath) {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8"));
-  seedSpots(db);
+  // Seed-i bazë vetëm për një databazë që s'është migruar ende: pas kësaj struktura
+  // menaxhohet nga paneli (D5) dhe një vend i fshirë nuk rikrijohet në nisjen tjetër.
+  const migrated = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'")
+    .get();
+  if (!migrated) seedSpots(db);
+  runMigrations(db);
   return db;
 }
 

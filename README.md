@@ -188,6 +188,8 @@ npm run seed              # krijon adminin + çelësin API të urës (shfaqet ve
 npm start
 ```
 
+> Migrimet e databazës aplikohen vetë kur niset backend-i. Të dhëna DEMO: `npm run seed:demo`. Backup, kontrolli dhe pastrimi: shih [`docs/DATABASE.md`](docs/DATABASE.md).
+
 ### 4. Hap dashboard-in
 - Hap `http://localhost:3000` — frontend-i (dosja `frontend/`) shërbehet nga backend-i.
 - Dokumentimi i API-së: `http://localhost:3000/api/docs`
@@ -222,6 +224,7 @@ npm start
 | Databaza | Ndryshimi ruhet dhe lexohet saktë |
 
 Rezultatet dhe fotografitë e testeve ruhen në [`docs/`](docs/).
+Verifikimi i databazës (D1–D7): [`docs/ERDI_D1-D7_VERIFIKIMI.md`](docs/ERDI_D1-D7_VERIFIKIMI.md).
 
 ## 🗓️ Plani i realizimit
 

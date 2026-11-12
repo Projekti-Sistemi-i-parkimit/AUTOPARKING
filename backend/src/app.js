@@ -14,6 +14,8 @@ const eventsRoutes = require("./routes/events");
 const qrRoutes = require("./routes/qr");
 const visitorRoutes = require("./routes/visitors");
 const adminRoutes = require("./routes/admin");
+const parkingAdminRoutes = require("./routes/parking-admin");
+const { loadSettingsIntoConfig } = require("./services/settings");
 
 // Faqja e Swagger UI — ngarkon asetet nga CDN për të mos shtuar varësi.
 const SWAGGER_HTML = `<!DOCTYPE html>
@@ -27,6 +29,7 @@ const SWAGGER_HTML = `<!DOCTYPE html>
 function createApp({ db, config }) {
   const app = express();
   const database = db || createDb(config.dbPath);
+  loadSettingsIntoConfig(database, config); // pragjet e ndryshuara nga paneli (D5)
   const hub = new SseHub();
   const parking = createParkingService(database, config, hub);
 
@@ -48,6 +51,7 @@ function createApp({ db, config }) {
   app.use("/api", qrRoutes(database, hub));
   app.use("/api", visitorRoutes(database, parking, hub));
   app.use("/api", adminRoutes(database, config, hub));
+  app.use("/api", parkingAdminRoutes(database, config, hub));
 
   app.use(notFound);
   app.use(errorHandler);

@@ -1,0 +1,289 @@
+/* ============================================================
+   Paneli i grupit "parking" (Erdi): Struktura, Parametrat, Raportet & të dhënat.
+   Gjithçka është brenda .pk — stilet e ekipit (styles.css) nuk preken.
+
+   Stili: minimal, njëngjyrësh. Ngjyra kryesore është vetë teksti (e zezë në "glass",
+   e bardhë në "dark"); gjithçka tjetër është në shkallë gri. E kuqja përdoret vetëm për
+   gabime reale (kontroll i dështuar, vlerë e pavlefshme).
+   Ikonat: Lucide (ISC), një ngjyrë (currentColor) — shih js/vendor/lucide-icons.js.
+   Efektet NumberTicker dhe MagicCard sipas Magic UI (dillionverma/magicui, MIT) nga 21st.dev.
+   ============================================================ */
+
+.pk, .pk-form {
+  --ink: var(--text);
+  --ink-2: color-mix(in srgb, var(--text) 62%, transparent);
+  --ink-3: color-mix(in srgb, var(--text) 38%, transparent);
+  --line: color-mix(in srgb, var(--text) 9%, transparent);
+  --fill: color-mix(in srgb, var(--text) 5%, transparent);
+  --fill-2: color-mix(in srgb, var(--text) 10%, transparent);
+  --surface: var(--card-solid);
+  --paper: var(--bg);
+  --err: var(--danger);
+  --r-lg: 18px;
+  --r-md: 12px;
+  --r-sm: 9px;
+  --pk-font: "Geist", "Inter", "Segoe UI Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --pk-mono: "Geist Mono", ui-monospace, "SF Mono", Consolas, monospace;
+  font-family: var(--pk-font);
+  font-feature-settings: "ss01", "cv11";
+  letter-spacing: -0.006em;
+  color: var(--ink);
+}
+.pk { animation: pk-in .3s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes pk-in { from { opacity: 0; transform: translateY(4px); } }
+.pk .mono, .pk code, .pk-form .mono { font-family: var(--pk-mono); font-size: .78rem; }
+.pk h1 { font-weight: 600; letter-spacing: -.035em; }
+.pk h3 { font-weight: 600; letter-spacing: -.012em; }
+.pk b { font-weight: 600; }
+
+/* ---------- Ikonat: një ngjyrë ---------- */
+.pk-i { width: 1em; height: 1em; flex: none; stroke-width: 1.75; vertical-align: -.125em; }
+.side-nav .icon .pk-i { width: 16px; height: 16px; vertical-align: -3px; }
+
+/* ---------- Butonat brenda seksioneve ---------- */
+.pk .btn, .pk-form .btn {
+  font-family: inherit; font-weight: 500; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--line); color: var(--ink); box-shadow: none;
+}
+.pk .btn:hover, .pk-form .btn:hover { border-color: var(--ink-3); transform: none; }
+.pk .btn-primary, .pk-form .btn-primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.pk .btn-primary:hover, .pk-form .btn-primary:hover { background: var(--ink-2); border-color: transparent; box-shadow: none; }
+.pk .btn-ghost, .pk-form .btn-ghost { background: transparent; }
+.pk .btn .pk-i, .pk-form .btn .pk-i { width: 15px; height: 15px; }
+.pk :focus-visible, .pk-form :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* ---------- Koka ---------- */
+.pk .pk-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.pk .pk-eyebrow { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px; font-size: .78rem; color: var(--ink-2); }
+.pk .pk-head h1 { font-size: 1.75rem; line-height: 1.15; }
+.pk .pk-head p { color: var(--ink-2); margin-top: 6px; font-size: .9rem; max-width: 60ch; }
+.pk .pk-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ---------- Kartat (MagicCard: dritë e butë që ndjek kursorin) ---------- */
+.pk .pk-card {
+  position: relative; isolation: isolate; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 4%, transparent);
+  --mx: -500px; --my: -500px;
+}
+.pk .pk-card::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(420px circle at var(--mx) var(--my), var(--fill), transparent 65%);
+  opacity: 0; transition: opacity .3s;
+}
+.pk .pk-card:hover::before { opacity: 1; }
+.pk .pk-pad { padding: 20px; }
+.pk .pk-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px 0; flex-wrap: wrap; }
+.pk .pk-card-head.ruled { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.pk .pk-card-head h3 { margin: 0; display: flex; align-items: center; gap: 9px; font-size: .95rem; }
+.pk .pk-card-head .sub { width: 100%; margin-top: -6px; font-size: .8rem; color: var(--ink-2); }
+.pk .pk-card-head small { color: var(--ink-2); font-size: .78rem; }
+.pk .pk-selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+
+/* ---------- KPI ---------- */
+.pk .pk-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.pk .pk-kpi { padding: 16px 18px; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr auto; gap: 0 12px; }
+.pk .pk-kpi .k-label { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .82rem; font-weight: 500; }
+.pk .pk-kpi .k-ico {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--line); color: var(--ink); background: var(--surface);
+}
+.pk .pk-kpi .k-ico .pk-i { width: 14px; height: 14px; }
+.pk .pk-kpi .k-value { margin-top: 14px; font-size: 1.95rem; font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; line-height: 1; align-self: end; }
+.pk .pk-kpi .k-value small { font-size: .85rem; font-weight: 500; color: var(--ink-3); margin-left: 3px; letter-spacing: 0; }
+.pk .pk-kpi .k-sub { grid-column: 1; margin-top: 8px; font-size: .74rem; color: var(--ink-2); }
+.pk .pk-kpi .k-spark { grid-column: 2; grid-row: 2 / 4; align-self: end; display: flex; align-items: flex-end; gap: 2px; height: 30px; }
+.pk .pk-kpi .k-spark i { display: block; width: 3px; border-radius: 1px; background: var(--ink-3); min-height: 3px; }
+.pk .pk-kpi .k-spark i:last-child { background: var(--ink); }
+
+/* ---------- Sektorët ---------- */
+.pk .pk-sectors { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.pk .pk-sector { padding: 16px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: border-color .15s; }
+.pk .pk-sector:hover { border-color: var(--ink-3); }
+.pk .pk-sector.off { opacity: .55; }
+.pk .pk-sector-top { display: flex; align-items: center; gap: 12px; }
+.pk .pk-sector-code {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-md); flex: none;
+  font-size: 1.05rem; font-weight: 600; background: var(--ink); color: var(--paper);
+}
+.pk .pk-sector-code.demo { background: var(--fill-2); color: var(--ink); }
+.pk .pk-sector-top b { display: block; font-size: .95rem; }
+.pk .pk-sector-top small { color: var(--ink-2); font-size: .76rem; }
+.pk .pk-sector-top .pk-row-actions { margin-left: auto; }
+.pk .pk-floors { display: flex; flex-direction: column; gap: 6px; }
+.pk .pk-floor {
+  display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: var(--r-md); background: var(--fill); font-size: .82rem;
+}
+.pk .pk-floor .f-code { font-family: var(--pk-mono); font-size: .72rem; color: var(--ink-2); }
+.pk .pk-floor .f-meta { display: flex; align-items: center; gap: 2px; color: var(--ink-2); font-size: .74rem; font-variant-numeric: tabular-nums; }
+.pk .pk-meter { height: 4px; border-radius: 99px; background: var(--fill-2); overflow: hidden; margin-top: 6px; }
+.pk .pk-meter > i { display: block; height: 100%; border-radius: inherit; background: var(--ink); transition: width .6s cubic-bezier(.2, .7, .2, 1); }
+
+/* ---------- Etiketat (pa ngjyra) ---------- */
+.pk .pk-tag {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 99px;
+  font-size: .72rem; font-weight: 500; border: 1px solid var(--line); color: var(--ink-2); white-space: nowrap; background: var(--surface);
+}
+.pk .pk-tag .pk-i { width: 12px; height: 12px; }
+.pk .pk-tag.solid { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.pk .pk-tag.off { border-style: dashed; color: var(--ink-3); }
+.pk .pk-tag.err { border-color: color-mix(in srgb, var(--err) 40%, transparent); color: var(--err); }
+.pk .pk-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: none; }
+.pk .pk-dot.hollow { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+.pk .pk-dot.pulse { animation: pk-pulse 2s infinite; }
+@keyframes pk-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+/* Statusi i vendit: e zënë = pikë e mbushur, e lirë = rreth, pa sinjal = gri */
+.pk .pk-status { display: inline-flex; align-items: center; gap: 7px; font-size: .8rem; color: var(--ink); }
+.pk .pk-status.unknown { color: var(--ink-3); }
+
+/* ---------- Butonat ikonë ---------- */
+.pk .pk-icon-btn {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-sm);
+  border: 0; background: transparent; color: var(--ink-3); cursor: pointer; transition: background .15s, color .15s;
+}
+.pk .pk-icon-btn .pk-i { width: 15px; height: 15px; }
+.pk .pk-icon-btn:hover { background: var(--fill-2); color: var(--ink); }
+.pk .pk-icon-btn.danger:hover { color: var(--err); }
+.pk .pk-row-actions { display: inline-flex; gap: 0; }
+
+/* ---------- Filtrat ---------- */
+.pk .pk-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--r-md); background: var(--fill); border: 1px solid var(--line); }
+.pk .pk-seg button {
+  border: 0; background: transparent; padding: 6px 12px; border-radius: var(--r-sm); font: inherit; font-size: .8rem; font-weight: 500;
+  color: var(--ink-2); cursor: pointer; transition: background .15s, color .15s;
+}
+.pk .pk-seg button.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 12%, transparent); }
+.pk select.pk-select {
+  padding: 8px 12px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; font-size: .82rem;
+}
+
+/* ---------- Tabela ---------- */
+.pk .tbl th { font-family: var(--pk-font); font-weight: 500; color: var(--ink-2); background: transparent; text-transform: none; letter-spacing: 0; font-size: .76rem; }
+.pk .tbl td { font-family: var(--pk-font); border-color: var(--line); }
+.pk .tbl tbody tr:hover { background: var(--fill); }
+.pk .tbl tr.off td { opacity: .5; }
+
+/* ---------- Parametrat ---------- */
+.pk .pk-params { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pk .pk-side { display: flex; flex-direction: column; gap: 16px; }
+.pk .pk-group + .pk-group { margin-top: 6px; padding-top: 18px; border-top: 1px solid var(--line); }
+.pk .pk-group h4 { display: flex; align-items: center; gap: 8px; font-size: .85rem; font-weight: 600; margin-bottom: 14px; }
+.pk .pk-field { display: grid; grid-template-columns: 1fr 140px; gap: 4px 16px; align-items: center; margin-bottom: 14px; }
+.pk .pk-field label { font-size: .85rem; font-weight: 500; }
+.pk .pk-field .hint { grid-column: 1; font-size: .74rem; color: var(--ink-2); }
+.pk .pk-field .pk-input { grid-column: 2; grid-row: 1 / 3; }
+.pk .pk-input { position: relative; }
+.pk .pk-input input {
+  width: 100%; padding: 9px 44px 9px 12px; border-radius: var(--r-md); border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; font-size: .9rem;
+}
+.pk .pk-input input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--fill-2); }
+.pk .pk-input input:disabled { background: var(--fill); color: var(--ink-2); }
+.pk .pk-input span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: .72rem; color: var(--ink-3); pointer-events: none; }
+.pk .pk-field.dirty input { border-color: var(--ink); }
+.pk .pk-field.dirty label::after { content: " •"; color: var(--ink); }
+.pk .pk-field.invalid input { border-color: var(--err); box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 12%, transparent); }
+.pk .pk-note { font-size: .82rem; color: var(--ink-2); padding: 10px 12px; border-radius: var(--r-md); background: var(--fill); margin-bottom: 14px; }
+.pk .pk-note.err { color: var(--err); background: color-mix(in srgb, var(--err) 8%, transparent); }
+
+/* Shiriti i klasifikimit */
+.pk .pk-scale { margin: 14px 0 4px; }
+.pk .pk-scale-bar { display: flex; height: 36px; border-radius: var(--r-md); overflow: hidden; gap: 3px; font-size: .74rem; font-weight: 500; }
+.pk .pk-scale-bar > div { display: grid; place-items: center; border-radius: 8px; transition: flex-basis .35s cubic-bezier(.2, .7, .2, 1); white-space: nowrap; overflow: hidden; min-width: 0; }
+.pk .pk-scale-bar .s-occ { background: var(--ink); color: var(--paper); }
+.pk .pk-scale-bar .s-free { background: var(--fill-2); color: var(--ink); }
+.pk .pk-scale-bar .s-unk { color: var(--ink-3); background: repeating-linear-gradient(135deg, var(--fill) 0 6px, transparent 6px 12px); border: 1px solid var(--line); }
+.pk .pk-scale-axis { display: flex; justify-content: space-between; font-family: var(--pk-mono); font-size: .68rem; color: var(--ink-3); margin-top: 8px; }
+
+/* ---------- Grafiku (shtylla gri, piku i zi — si referenca) ---------- */
+.pk .pk-chart-wrap { display: grid; grid-template-columns: 30px 1fr; gap: 8px; }
+.pk .pk-yaxis { display: flex; flex-direction: column; justify-content: space-between; height: 190px; font-family: var(--pk-mono); font-size: .64rem; color: var(--ink-3); text-align: right; padding-bottom: 2px; }
+.pk .pk-chart {
+  position: relative; display: grid; grid-template-columns: repeat(24, 1fr); align-items: end; gap: 5px; height: 190px;
+  background: repeating-linear-gradient(to top, var(--line) 0 1px, transparent 1px 25%);
+}
+.pk .pk-bar { position: relative; height: 100%; display: flex; align-items: flex-end; }
+.pk .pk-bar > i {
+  display: block; width: 100%; min-height: 3px; border-radius: 4px 4px 2px 2px; background: var(--fill-2);
+  transform-origin: bottom; animation: pk-grow .6s cubic-bezier(.2, .7, .2, 1) both; transition: background .15s;
+}
+.pk .pk-bar.peak > i { background: var(--ink); }
+.pk .pk-bar:hover > i { background: var(--ink-3); }
+.pk .pk-bar.peak:hover > i { background: var(--ink); }
+.pk .pk-bar .tip {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 2;
+  padding: 6px 9px; border-radius: 8px; background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--text) 12%, transparent);
+  font-size: .72rem; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .15s;
+}
+.pk .pk-bar:hover .tip, .pk .pk-bar.peak .tip.show { opacity: 1; }
+.pk .pk-chart-axis { display: grid; grid-template-columns: repeat(24, 1fr); gap: 5px; margin: 8px 0 0 38px; font-family: var(--pk-mono); font-size: .64rem; color: var(--ink-3); text-align: center; }
+@keyframes pk-grow { from { transform: scaleY(0); } }
+
+/* ---------- Listat ---------- */
+.pk .pk-list { display: flex; flex-direction: column; padding: 6px 0; }
+.pk .pk-list-item { display: flex; align-items: center; gap: 12px; padding: 11px 20px; font-size: .85rem; }
+.pk .pk-list-item + .pk-list-item { border-top: 1px solid var(--line); }
+.pk .pk-list-item .li-ico { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); color: var(--ink); flex: none; }
+.pk .pk-list-item .li-ico .pk-i { width: 15px; height: 15px; }
+.pk .pk-list-item .li-main { flex: 1; min-width: 0; }
+.pk .pk-list-item .li-main small { display: block; color: var(--ink-2); font-size: .74rem; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk .pk-check-ok { color: var(--ink); }
+.pk .pk-check-bad { color: var(--err); }
+.pk .pk-foot { padding: 12px 20px 16px; border-top: 1px solid var(--line); font-size: .8rem; color: var(--ink-2); }
+
+.pk .pk-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.pk .pk-mb { margin-bottom: 16px; }
+.pk .pk-empty { padding: 24px 20px; color: var(--ink-2); font-size: .85rem; }
+.pk .pk-skel { height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--fill), var(--fill-2), var(--fill)); background-size: 200% 100%; animation: pk-skel 1.2s infinite; }
+@keyframes pk-skel { to { background-position: -200% 0; } }
+
+/* ---------- Dialogu ---------- */
+.pk-form h3 { font-weight: 600; letter-spacing: -.02em; }
+.pk-form .m-sub { color: var(--ink-2); }
+.pk-form .field label { color: var(--ink-2); font-weight: 500; }
+.pk-form .field input, .pk-form .field select { border-radius: var(--r-md); border-color: var(--line); background: var(--surface); color: var(--ink); font-family: inherit; }
+.pk-form .field input:focus, .pk-form .field select:focus { border-color: var(--ink); box-shadow: 0 0 0 3px var(--fill-2); }
+.pk-form .pk-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.pk-form .pk-check { display: flex; align-items: center; gap: 9px; font-size: .86rem; margin: 4px 0 14px; cursor: pointer; }
+.pk-form .pk-check input { width: 16px; height: 16px; accent-color: var(--text); }
+.pk-form .pk-form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.pk-form .alert.error { border-radius: var(--r-md); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1080px) {
+  .pk .pk-params, .pk .pk-grid-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .pk .pk-head h1 { font-size: 1.45rem; }
+  .pk .pk-actions { width: 100%; }
+  .pk .pk-actions .pk-seg { width: 100%; }
+  .pk .pk-actions .pk-seg button { flex: 1; padding: 6px 4px; }
+  .pk .pk-actions select.pk-select, .pk .pk-actions .btn { flex: 1; }
+  .pk .pk-kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pk .pk-kpi { padding: 14px; }
+  .pk .pk-kpi .k-value { font-size: 1.55rem; }
+  .pk .pk-kpi .k-spark { display: none; }
+  .pk .pk-field { grid-template-columns: 1fr; }
+  .pk .pk-field .pk-input { grid-column: 1; grid-row: auto; }
+  .pk .pk-chart, .pk .pk-yaxis { height: 140px; }
+  .pk .pk-chart, .pk .pk-chart-axis { gap: 2px; }
+  .pk .pk-chart-wrap { grid-template-columns: 1fr; }
+  .pk .pk-yaxis { display: none; }
+  .pk .pk-chart-axis { margin-left: 0; }
+  .pk .pk-chart-axis span:nth-child(odd) { visibility: hidden; }
+  .pk .pk-list-item { padding: 11px 14px; flex-wrap: wrap; }
+  .pk .pk-list-item .li-main small { white-space: normal; overflow-wrap: anywhere; }
+  .pk .pk-card-head { padding: 14px 14px 0; }
+  .pk .pk-pad { padding: 14px; }
+  .pk-form .pk-form-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 380px) {
+  .pk .pk-kpis { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pk, .pk .pk-bar > i, .pk .pk-dot.pulse, .pk .pk-skel { animation: none !important; }
+  .pk .pk-meter > i, .pk .pk-scale-bar > div { transition: none; }
+}
