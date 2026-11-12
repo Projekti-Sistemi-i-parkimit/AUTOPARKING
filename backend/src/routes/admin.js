@@ -3,8 +3,9 @@
 const { Router } = require("express");
 const { HttpError } = require("../middleware/errors");
 const { requireAdmin, requireRole } = require("../middleware/auth");
-const { safeEqual } = require("../lib/passwords");
-const { ensureEnvAdmin } = require("../db/seed");
+const { safeEqual, verifyPassword, hashPassword } = require("../lib/passwords");
+const { adminAuthStatus } = require("../config");
+const { ensureEnvAdmin, ENV_MANAGED_HASH } = require("../db/seed");
 const { generateToken, hashToken } = require("../lib/tokens");
 const { requireString, requireEnum, pagination, paginated } = require("../lib/validate");
 const { logAction } = require("../services/audit");
@@ -35,29 +36,53 @@ module.exports = function adminRoutes(db, config, hub, adminAuth, parking) {
     }
   }
 
-  // POST /api/admin/login  { username, password } → { token, role, expires_at }
-  // Kredencialet verifikohen VETËM kundrejt Environment Variables
-  // (ADMIN_USERNAME / ADMIN_PASSWORD), me krahasim timing-safe.
-  // Databaza nuk është burim kredencialesh — mban vetëm identitetin për sesionin.
+  // POST /api/admin/login  { username, password }
+  //   → { token, role, expires_at, must_change_password }
+  // Dy burime kredencialesh, të dyja me krahasim timing-safe:
+  //   1. Admini bootstrap i environment-it (ADMIN_USERNAME / ADMIN_PASSWORD) —
+  //      databaza mban vetëm identitetin (sentinel "env-managed").
+  //   2. Adminët e databazës ("npm run seed:admins") — hash scrypt salt:hash;
+  //      me must_change_password=1 hyrja lejohet vetëm për ndryshim fjalëkalimi.
   router.post("/admin/login", (req, res) => {
     if (loginBlocked(req.ip)) {
       throw new HttpError(429, "Shumë përpjekje të dështuara — provo përsëri pas 15 minutash");
     }
-    if (!adminAuth || !adminAuth.enabled) {
+    const hasDbAdmins = !!db
+      .prepare("SELECT 1 FROM admin_users WHERE password_hash != ? LIMIT 1")
+      .get(ENV_MANAGED_HASH);
+    if ((!adminAuth || !adminAuth.enabled) && !hasDbAdmins) {
       throw new HttpError(503, "Hyrja e adminit nuk është e konfiguruar në server — kontakto administratorin e sistemit");
     }
     const username = requireString((req.body || {}).username, "username", { max: 50 });
     const password = requireString(req.body.password, "password", { max: 200 });
-    // Të dyja krahasimet kryhen gjithmonë (pa short-circuit të hershëm)
-    const okUser = safeEqual(username, config.adminUsername);
-    const okPass = safeEqual(password, config.adminPassword);
-    if (!okUser || !okPass) {
+
+    let user = null;
+    // 1) Admini i environment-it — të dyja krahasimet kryhen gjithmonë
+    if (adminAuth && adminAuth.enabled) {
+      const okUser = safeEqual(username, config.adminUsername);
+      const okPass = safeEqual(password, config.adminPassword);
+      if (okUser && okPass) {
+        user = { ...ensureEnvAdmin(db, config.adminUsername), role: "admin", must_change_password: 0 };
+      }
+    }
+    // 2) Adminët e databazës (hash scrypt)
+    if (!user) {
+      const row = db
+        .prepare(
+          `SELECT id, username, role, password_hash, must_change_password
+           FROM admin_users WHERE username = ?`
+        )
+        .get(username);
+      if (row && row.password_hash !== ENV_MANAGED_HASH && verifyPassword(password, row.password_hash)) {
+        user = row;
+      }
+    }
+    if (!user) {
       recordLoginFail(req.ip);
       logAction(db, null, "login_failed", { username });
       throw new HttpError(401, "Emri i përdoruesit ose fjalëkalimi është gabim");
     }
     loginFails.delete(req.ip);
-    const user = { ...ensureEnvAdmin(db, config.adminUsername), role: "admin" };
     const token = generateToken("at_");
     const expiresAt = new Date(Date.now() + config.sessionTtlHours * 3600_000).toISOString();
     db.prepare(
@@ -65,7 +90,13 @@ module.exports = function adminRoutes(db, config, hub, adminAuth, parking) {
     ).run(user.id, hashToken(token), expiresAt);
     db.prepare("UPDATE admin_users SET last_login = datetime('now') WHERE id = ?").run(user.id);
     logAction(db, user.id, "login", { username });
-    res.json({ token, role: user.role, username: user.username, expires_at: expiresAt });
+    res.json({
+      token,
+      role: user.role,
+      username: user.username,
+      expires_at: expiresAt,
+      must_change_password: !!user.must_change_password,
+    });
   });
 
   const auth = requireAdmin(db);
@@ -82,6 +113,40 @@ module.exports = function adminRoutes(db, config, hub, adminAuth, parking) {
     res.json(req.admin);
   });
 
+  // POST /api/admin/password  { current_password, new_password }
+  // Ndryshon fjalëkalimin e llogarisë së vet (vetëm adminët e databazës;
+  // admini i environment-it ndryshohet te ADMIN_PASSWORD në .env / Render).
+  // Heq flamurin must_change_password dhe mbyll sesionet e tjera të llogarisë.
+  router.post("/admin/password", auth, (req, res) => {
+    const current = requireString((req.body || {}).current_password, "current_password", { max: 200 });
+    const next = requireString(req.body.new_password, "new_password", { max: 200 });
+    const row = db
+      .prepare("SELECT id, username, password_hash FROM admin_users WHERE id = ?")
+      .get(req.admin.id);
+    if (row.password_hash === ENV_MANAGED_HASH) {
+      throw new HttpError(400, "Kjo llogari menaxhohet me ADMIN_PASSWORD në environment — ndryshoje atje");
+    }
+    if (!verifyPassword(current, row.password_hash)) {
+      recordLoginFail(req.ip);
+      throw new HttpError(401, "Fjalëkalimi aktual është gabim");
+    }
+    if (safeEqual(current, next)) {
+      throw new HttpError(400, "Fjalëkalimi i ri duhet të jetë i ndryshëm nga aktuali");
+    }
+    const valid = adminAuthStatus(row.username, next);
+    if (!valid.enabled) throw new HttpError(400, valid.reason);
+    db.prepare(
+      "UPDATE admin_users SET password_hash = ?, must_change_password = 0 WHERE id = ?"
+    ).run(hashPassword(next), row.id);
+    // Siguri: çdo sesion tjetër i kësaj llogarie mbyllet
+    db.prepare("DELETE FROM admin_sessions WHERE admin_user_id = ? AND id != ?").run(
+      row.id,
+      req.adminSessionId
+    );
+    logAction(db, row.id, "password_changed");
+    res.json({ ok: true });
+  });
+
   // GET /api/admin/users (vetëm roli admin)
   router.get("/admin/users", auth, requireRole("admin"), (req, res) => {
     const rows = db
@@ -90,13 +155,13 @@ module.exports = function adminRoutes(db, config, hub, adminAuth, parking) {
     res.json({ data: rows });
   });
 
-  // POST /api/admin/users — HEQUR: kredencialet nuk ruhen më në databazë.
-  // Llogaria e adminit menaxhohet vetëm me ADMIN_USERNAME / ADMIN_PASSWORD
-  // në environment (lokalisht .env, Docker Compose, Render Environment).
+  // POST /api/admin/users — HEQUR: llogaritë nuk krijohen nga paneli.
+  // Admini bootstrap vjen nga environment-i (ADMIN_USERNAME / ADMIN_PASSWORD);
+  // adminët e ekipit krijohen me "npm run seed:admins" në server.
   router.post("/admin/users", auth, requireRole("admin"), () => {
     throw new HttpError(
       410,
-      "Llogaritë nuk krijohen më nga paneli — kredencialet menaxhohen me Environment Variables (ADMIN_USERNAME / ADMIN_PASSWORD)"
+      "Llogaritë nuk krijohen nga paneli — përdor \"npm run seed:admins\" në server (shih backend/README.md)"
     );
   });
 

@@ -108,8 +108,10 @@ CREATE INDEX IF NOT EXISTS idx_qr_scans_plate ON qr_scans(plate, id DESC);
 CREATE TABLE IF NOT EXISTS admin_users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   username      TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,               -- scrypt: salt:hash (hex)
+  password_hash TEXT NOT NULL,               -- scrypt: salt:hash (hex), ose 'env-managed'
   role          TEXT NOT NULL DEFAULT 'operator' CHECK (role IN ('admin','operator')),
+  -- 1 = fjalëkalimi fillestar duhet ndryshuar në hyrjen e parë
+  must_change_password INTEGER NOT NULL DEFAULT 0,
   last_login    TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now'))
 );

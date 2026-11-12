@@ -14,7 +14,8 @@ function requireAdmin(db) {
     if (!token) return res.status(401).json({ error: "Kërkohet autentikim (Bearer token)" });
     const session = db
       .prepare(
-        `SELECT s.id AS session_id, s.expires_at, u.id, u.username, u.role
+        `SELECT s.id AS session_id, s.expires_at, u.id, u.username, u.role,
+                u.must_change_password
          FROM admin_sessions s JOIN admin_users u ON u.id = s.admin_user_id
          WHERE s.token_hash = ?`
       )
@@ -24,7 +25,25 @@ function requireAdmin(db) {
       db.prepare("DELETE FROM admin_sessions WHERE id = ?").run(session.session_id);
       return res.status(401).json({ error: "Sesioni ka skaduar" });
     }
-    req.admin = { id: session.id, username: session.username, role: session.role };
+    // Fjalëkalimi fillestar duhet ndryshuar para çdo veprimi tjetër —
+    // lejohen vetëm ndryshimi i fjalëkalimit, dalja dhe identiteti i vet.
+    if (session.must_change_password) {
+      const allowed =
+        (req.method === "POST" && (req.path === "/admin/password" || req.path === "/admin/logout")) ||
+        (req.method === "GET" && req.path === "/admin/me");
+      if (!allowed) {
+        return res.status(403).json({
+          error: "Duhet të ndryshoni fjalëkalimin fillestar para se të vazhdoni",
+          must_change_password: true,
+        });
+      }
+    }
+    req.admin = {
+      id: session.id,
+      username: session.username,
+      role: session.role,
+      must_change_password: !!session.must_change_password,
+    };
     req.adminSessionId = session.session_id;
     next();
   };

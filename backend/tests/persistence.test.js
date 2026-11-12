@@ -107,7 +107,7 @@ test("login-i bllokohet me 429 pas shumë përpjekjeve të dështuara", async ()
   }
 });
 
-test("ensureEnvAdmin: identitet pa kredenciale, pa duplikate, me migrim të sigurt", () => {
+test("ensureEnvAdmin: identitet pa kredenciale, pa duplikate, pa prekur llogaritë e tjera", () => {
   const db = createDb(":memory:");
 
   // Databazë e re: krijohet rreshti i identitetit me vlerë sentinel (jo hash)
@@ -123,19 +123,20 @@ test("ensureEnvAdmin: identitet pa kredenciale, pa duplikate, me migrim të sigu
   assert.equal(second.id, first.id);
   assert.equal(db.prepare("SELECT COUNT(*) AS n FROM admin_users").get().n, 1);
 
-  // Ndryshimi i ADMIN_USERNAME: riemërohet llogaria ekzistuese (ruhet id-ja)
+  // Ndryshimi i ADMIN_USERNAME: krijohet rresht i ri; i vjetri nuk preket
   const renamed = ensureEnvAdmin(db, "tjeter-admin");
-  assert.equal(renamed.id, first.id);
-  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM admin_users").get().n, 1);
-  assert.equal(db.prepare("SELECT username FROM admin_users").get().username, "tjeter-admin");
+  assert.notEqual(renamed.id, first.id);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM admin_users").get().n, 2);
 
-  // Migrimi: një hash i vjetër scrypt në databazë neutralizohet
-  db.prepare("UPDATE admin_users SET password_hash = 'salt-i-vjeter:hash-i-vjeter'").run();
+  // Llogaritë e databazës (hash scrypt nga seed:admins) NUK neutralizohen
+  db.prepare(
+    "INSERT INTO admin_users (username, password_hash, role, must_change_password) VALUES ('ekipi', 'salt:hash-scrypt', 'admin', 1)"
+  ).run();
   ensureEnvAdmin(db, "tjeter-admin");
   assert.equal(
-    db.prepare("SELECT password_hash FROM admin_users").get().password_hash,
-    ENV_MANAGED_HASH,
-    "hash-et e vjetra zëvendësohen me sentinel të papërdorshëm"
+    db.prepare("SELECT password_hash FROM admin_users WHERE username = 'ekipi'").get().password_hash,
+    "salt:hash-scrypt",
+    "hash-et e adminëve të ekipit mbeten të paprekura"
   );
   db.close();
 });

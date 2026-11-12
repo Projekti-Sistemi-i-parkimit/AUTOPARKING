@@ -1,12 +1,19 @@
-
-# Prometheus — monitoron aplikacionin në Render.
-# Prometheus punon vetëm lokalisht në Docker.
+# Prometheus — punon vetëm lokalisht në Docker (profili "monitoring").
+# Skrapon backend-in lokal (kontejneri "backend" në rrjetin e Compose)
+# dhe, si target shtesë, aplikacionin e deployuar në Render.
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
 scrape_configs:
+  # Metrikat nga backend-i lokal në Docker Compose
+  - job_name: "parkimi-backend"
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "backend:3000"
+
   # Metrikat nga backend-i në Render
   - job_name: "parkimi-render"
     metrics_path: /metrics

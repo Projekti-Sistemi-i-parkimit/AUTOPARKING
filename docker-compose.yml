@@ -1,0 +1,87 @@
+# Sistemi Inteligjent i Parkimit — mjedisi Docker
+#
+# Nisja:   docker compose up -d --build
+# Ndalja:  docker compose down          (të dhënat RUHEN në volumin parking_data)
+# KUJDES:  "docker compose down -v" FSHIN databazën — mos e përdor në operim normal.
+#
+# Konfigurimi merret nga skedari .env në rrënjën e repo-s (shih .env.example).
+# Arkitektura: një shërbim i vetëm — backend-i Node shërben edhe frontend-in
+# statik dhe mban SQLite në volum. Ura e Arduino-s punon në shfletuesin e
+# operatorit (Web Serial), kështu që kontejneri s'ka nevojë për qasje USB.
+
+name: parkimi
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: parkimi-backend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      PORT: 3000
+      DB_PATH: /data/parking.db
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      # E detyrueshme — vendose në .env (nuk ka vlerë default me qëllim)
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Vendos ADMIN_PASSWORD në skedarin .env (shih .env.example)}
+      BRIDGE_API_KEY: ${BRIDGE_API_KEY:-}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+      OCC_THRESHOLD_CM: ${OCC_THRESHOLD_CM:-3}
+      MAX_RANGE_CM: ${MAX_RANGE_CM:-10}
+      SENSOR_OFFLINE_S: ${SENSOR_OFFLINE_S:-45}
+    volumes:
+      - parking_data:/data
+
+  # ---------- Monitorimi (VETËM lokal, profil i veçantë) ----------
+  # Nisja:  docker compose --profile monitoring up -d
+  # Lidhen vetëm në 127.0.0.1 — NUK deployohen në Render.
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: parkimi-prometheus
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./devops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: parkimi-grafana
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ./devops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./devops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  # Databaza SQLite — mbijeton restart/recreate të kontejnerëve
+  parking_data:
+  prometheus_data:
+  grafana_data:

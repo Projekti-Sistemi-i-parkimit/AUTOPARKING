@@ -24,8 +24,18 @@ function createDb(dbPath) {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8"));
+  migrate(db);
   seedSpots(db);
   return db;
+}
+
+// Migrime idempotente për databazat ekzistuese (CREATE TABLE IF NOT EXISTS
+// nuk i shton kolonat e reja në tabelat e vjetra).
+function migrate(db) {
+  const cols = db.prepare("PRAGMA table_info(admin_users)").all().map((c) => c.name);
+  if (!cols.includes("must_change_password")) {
+    db.exec("ALTER TABLE admin_users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0");
+  }
 }
 
 // Krijon vendet, gjendjet fillestare dhe kodet QR nëse mungojnë (idempotente).

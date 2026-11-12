@@ -105,7 +105,22 @@ const API = (() => {
     adminLogin: async (username, password) => {
       const r = await post("/api/admin/login", { username, password });
       store.adminToken = r.token;
-      store.admin = { username: r.username, role: r.role, expires_at: r.expires_at };
+      store.admin = {
+        username: r.username,
+        role: r.role,
+        expires_at: r.expires_at,
+        must_change_password: !!r.must_change_password,
+      };
+      return r;
+    },
+    adminChangePassword: async (currentPassword, newPassword) => {
+      const r = await post(
+        "/api/admin/password",
+        { current_password: currentPassword, new_password: newPassword },
+        { auth: "admin" }
+      );
+      const a = store.admin;
+      if (a) store.admin = { ...a, must_change_password: false };
       return r;
     },
     adminLogout: async () => {

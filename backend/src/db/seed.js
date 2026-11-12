@@ -15,28 +15,20 @@ const { generateToken, hashToken } = require("../lib/tokens");
 // prandaj asnjë fjalëkalim i ruajtur në databazë s'mund të përdoret për hyrje.
 const ENV_MANAGED_HASH = "env-managed";
 
-// Siguron rreshtin e identitetit të adminit sipas ADMIN_USERNAME dhe
-// neutralizon çdo hash të vjetër fjalëkalimi (migrim i sigurt nga skema e
-// vjetër ku kredencialet ruheshin në databazë). Idempotent, pa duplikate.
+// Siguron rreshtin e identitetit të adminit të environment-it (ADMIN_USERNAME).
+// Idempotent, pa duplikate. NUK prek llogaritë e tjera të databazës (adminët
+// me hash scrypt nga "npm run seed:admins") — vetëm rreshtin e vet. Nëse
+// username-i përplaset me një llogari ekzistuese me hash scrypt, hash-i
+// ruhet: të dyja mënyrat e hyrjes (env dhe databazë) mbeten të vlefshme.
 function ensureEnvAdmin(db, username) {
-  db.prepare("UPDATE admin_users SET password_hash = ? WHERE password_hash != ?").run(
-    ENV_MANAGED_HASH,
-    ENV_MANAGED_HASH
-  );
-  const existing = db.prepare("SELECT id, role FROM admin_users WHERE username = ?").get(username);
+  const existing = db
+    .prepare("SELECT id, role FROM admin_users WHERE username = ?")
+    .get(username);
   if (existing) {
     if (existing.role !== "admin") {
       db.prepare("UPDATE admin_users SET role = 'admin' WHERE id = ?").run(existing.id);
     }
     return { id: existing.id, username };
-  }
-  const firstAdmin = db
-    .prepare("SELECT id FROM admin_users WHERE role = 'admin' ORDER BY id LIMIT 1")
-    .get();
-  if (firstAdmin) {
-    // Riemërohet llogaria ekzistuese (ruhen sesionet/audit-i, s'krijohet duplikat)
-    db.prepare("UPDATE admin_users SET username = ? WHERE id = ?").run(username, firstAdmin.id);
-    return { id: firstAdmin.id, username };
   }
   const info = db
     .prepare("INSERT INTO admin_users (username, password_hash, role) VALUES (?, ?, 'admin')")

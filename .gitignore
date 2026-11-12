@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets (.env.example NUK është sekret dhe futet në Git)
+.env
+.env.local
+.env.*.local
+
+# Database files (local data, never committed)
+backend/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.db.backup
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

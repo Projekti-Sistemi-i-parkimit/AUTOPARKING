@@ -209,6 +209,8 @@ dhe seed-i (admini + çelësi API) ekzekutohen automatikisht në nisje dhe janë
 | `SESSION_TTL_HOURS` | `12` | Kohëzgjatja e sesionit të adminit |
 | `PUBLIC_BASE_URL` | (bosh) | URL-ja publike në prodhim (p.sh. `https://autoparkoje.onrender.com`) — përdoret në kodet QR; bosh = adresa e shfletuesit |
 | `OCC_THRESHOLD_CM` / `MAX_RANGE_CM` | `3` / `10` | Pragjet e klasifikimit (cm) |
+| `SENSOR_OFFLINE_S` | `45` | Sekondat e heshtjes së Arduino-s para se vendet me sensor të shënohen OFFLINE |
+| `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` | `admin` / `admin` | Vetëm për profilin lokal `monitoring` |
 
 ### 3b. Nisja pa Docker (zhvillim lokal)
 ```bash
@@ -218,8 +220,18 @@ npm install
 npm run seed              # gjeneron çelësin API të urës (shfaqet vetëm një herë)
 npm start
 ```
-Kredencialet e adminit lexohen VETËM nga environment-i (`ADMIN_USERNAME` /
+Kredencialet e adminit bootstrap lexohen nga environment-i (`ADMIN_USERNAME` /
 `ADMIN_PASSWORD` në `.env` e rrënjës lokalisht, ose Render → Environment në prodhim).
+
+**Adminët e ekipit** (emir, erblin, isra, erdi, loresa, blendi) krijohen një herë me:
+```bash
+npm run seed:admins                                        # lokalisht (nga backend/)
+docker compose exec backend node src/db/seed-admins.js     # në Docker
+```
+Fjalëkalimet fillestare (8 shifra, të rastësishme) shfaqen **vetëm një herë** në
+terminal — shpërndaji privatisht; në databazë ruhet vetëm hash-i scrypt. Në hyrjen
+e parë secili detyrohet ta ndryshojë fjalëkalimin. Në Render ekzekutohet e njëjta
+komandë një herë nga **Render → Shell** (databaza në Persistent Disk e ruan).
 
 ### 3c. Monitorimi lokal (opsional — Prometheus + Grafana)
 ```bash
@@ -227,6 +239,28 @@ docker compose --profile monitoring up -d
 ```
 Prometheus: `http://localhost:9090` · Grafana: `http://localhost:3001` (vetëm
 në 127.0.0.1, nuk deployohen në Render). Detajet: [`devops/README.md`](devops/README.md).
+
+### 3d. Deployment në Render
+
+Render **nuk e lexon** skedarin lokal `.env` — variablat vendosen te
+**Render → Service → Environment**. Të nevojshmet:
+
+| Variabla në Render | Vlera |
+|---|---|
+| `ADMIN_USERNAME` | emri i adminit (p.sh. `admin`) |
+| `ADMIN_PASSWORD` | **e detyrueshme** — fjalëkalim real, min. 8 karaktere (placeholder-ët refuzohen) |
+| `PUBLIC_BASE_URL` | URL-ja publike e shërbimit (p.sh. `https://autoparkoje.onrender.com`) — që kodet QR të hapen nga telefonat |
+| `BRIDGE_API_KEY` | opsionale — vendose vetëm nëse do çelës të caktuar; bosh = gjenerohet në nisjen e parë (shfaqet një herë në logje) |
+| `SESSION_TTL_HOURS`, `OCC_THRESHOLD_CM`, `MAX_RANGE_CM`, `SENSOR_OFFLINE_S` | opsionale — vetëm nëse do të ndryshosh default-et |
+
+Shënime:
+- `PORT` e cakton vetë Render-i — mos e vendos manualisht.
+- `GRAFANA_*` nuk vendosen në Render (monitorimi është vetëm lokal).
+- Databaza SQLite në Render kërkon **Persistent Disk**; monto diskun dhe vendos
+  `DB_PATH` te rruga e tij (p.sh. `/data/parking.db`), përndryshe të dhënat
+  humbasin në çdo rideploy.
+- Sekretet nuk ekspozohen në frontend apo në përgjigjet e API-së — frontend-i
+  statik shërbehet nga i njëjti backend dhe s'ka nevojë për variabla të veta.
 
 ### 4. Hap dashboard-in
 - Hap `http://localhost:3000` — frontend-i (dosja `frontend/`) shërbehet nga backend-i.

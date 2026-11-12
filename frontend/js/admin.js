@@ -51,10 +51,15 @@ const Admin = (window.Admin = {
       const btn = UI.$("lgBtn");
       btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Duke u kyçur…`;
       try {
-        await API.adminLogin(username, password);
+        const r = await API.adminLogin(username, password);
         API.store.rememberedUser = UI.$("lgRemember").checked ? username : "";
         document.dispatchEvent(new CustomEvent("admin:changed"));
         UI.closeModal();
+        if (r.must_change_password) {
+          // Fjalëkalimi fillestar duhet ndryshuar para çdo veprimi tjetër
+          Admin.openChangePassword({ forced: true, currentPassword: password });
+          return;
+        }
         UI.toast(`Mirë se erdhe, ${username}!`, "ok");
         location.hash = "#/admin";
       } catch (err) {
@@ -72,6 +77,58 @@ const Admin = (window.Admin = {
     document.dispatchEvent(new CustomEvent("admin:changed"));
     UI.toast("U çkyçe me sukses");
     location.hash = "#/";
+  },
+
+  /* ---------- Ndryshimi i fjalëkalimit ---------- */
+  // forced: hyrja e parë me fjalëkalim fillestar — serveri bllokon çdo
+  // veprim tjetër derisa fjalëkalimi të ndryshohet, prandaj modali s'anulohet.
+  openChangePassword({ forced = false, currentPassword = "" } = {}) {
+    UI.modal(`
+      <h3>Ndrysho fjalëkalimin</h3>
+      <p class="m-sub">${
+        forced
+          ? "Ky është fjalëkalimi fillestar — për siguri duhet ta ndryshoni para se të vazhdoni."
+          : "Vendosni fjalëkalimin aktual dhe të riun (min. 8 karaktere)."
+      }</p>
+      <div id="cpAlert"></div>
+      <form id="cpForm">
+        <div class="field">
+          <label for="cpCurrent">Fjalëkalimi aktual</label>
+          <input id="cpCurrent" type="password" autocomplete="current-password"
+                 value="${UI.esc(currentPassword)}" required>
+        </div>
+        <div class="field">
+          <label for="cpNew">Fjalëkalimi i ri (min. 8 karaktere)</label>
+          <input id="cpNew" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <div class="field">
+          <label for="cpNew2">Përsërit fjalëkalimin e ri</label>
+          <input id="cpNew2" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <button class="btn btn-primary btn-block" id="cpBtn" type="submit">Ruaj fjalëkalimin</button>
+      </form>`);
+    UI.$(currentPassword ? "cpNew" : "cpCurrent").focus();
+
+    UI.$("cpForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const alertBox = UI.$("cpAlert");
+      const neu = UI.$("cpNew").value;
+      if (neu !== UI.$("cpNew2").value) {
+        alertBox.innerHTML = `<div class="alert error">Fjalëkalimet e reja nuk përputhen.</div>`;
+        return;
+      }
+      const btn = UI.$("cpBtn");
+      btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Duke ruajtur…`;
+      try {
+        await API.adminChangePassword(UI.$("cpCurrent").value, neu);
+        UI.closeModal();
+        UI.toast("Fjalëkalimi u ndryshua me sukses", "ok");
+        location.hash = "#/admin";
+      } catch (err) {
+        alertBox.innerHTML = `<div class="alert error">${UI.esc(err.message)}</div>`;
+        btn.disabled = false; btn.textContent = "Ruaj fjalëkalimin";
+      }
+    };
   },
 
   /* ---------- Korniza e panelit ---------- */
@@ -505,7 +562,8 @@ const Admin = (window.Admin = {
     async users(c) {
       const r = await API.adminUsers();
       c.innerHTML = `
-        <div class="page-head"><div><h1>Përdoruesit</h1><p>Llogaria e administratorit menaxhohet me Environment Variables (ADMIN_USERNAME / ADMIN_PASSWORD) — jo nga paneli.</p></div></div>
+        <div class="page-head"><div><h1>Përdoruesit</h1><p>Llogaritë krijohen në server ("npm run seed:admins"); admini bootstrap vjen nga Environment Variables (ADMIN_USERNAME / ADMIN_PASSWORD).</p></div>
+        <button class="btn btn-ghost" onclick="Admin.openChangePassword()">Ndrysho fjalëkalimin tim</button></div>
         <div class="card">
           <div class="table-wrap"><table class="tbl">
             <thead><tr><th>ID</th><th>Përdoruesi</th><th>Roli</th><th>Hyrja e fundit</th><th>Krijuar</th></tr></thead>
