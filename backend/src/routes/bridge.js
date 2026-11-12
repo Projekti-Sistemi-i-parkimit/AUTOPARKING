@@ -24,7 +24,10 @@ module.exports = function bridgeRoutes(db, parking, hub) {
     const unknownKeys = [];
     for (const s of spots) {
       const key = requireString(s && s.key, "key", { max: 20 });
-      if (!db.prepare("SELECT 1 FROM spots WHERE spot_key = ?").get(key)) {
+      // Pranohen vetëm vendet me sensor fizik (Sektori A) — sektorët online
+      // B/C menaxhohen nga aplikacioni, jo nga ura e Arduino-s.
+      const spot = db.prepare("SELECT has_sensor FROM spots WHERE spot_key = ?").get(key);
+      if (!spot || !spot.has_sensor) {
         unknownKeys.push(key);
         continue;
       }

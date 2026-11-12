@@ -84,6 +84,24 @@ function createParkingService(db, config, hub) {
     return q.expireReservations.run(Date.now()).changes;
   }
 
+  // Sektori A (prototipi fizik): kur Arduino hesht më gjatë se pragu,
+  // vendet me sensor shënohen "unknown" (OFFLINE) — kurrë nuk shpiken matje.
+  // Prek VETËM vendet me sensor; sektorët online B/C nuk bëhen kurrë offline.
+  function sweepOfflineSensors(thresholdS) {
+    const stale = db
+      .prepare(
+        `SELECT s.spot_key FROM spots s JOIN spot_status st ON st.spot_id = s.id
+         WHERE s.has_sensor = 1 AND st.status != 'unknown'
+           AND COALESCE(
+                 (SELECT MAX(created_at) FROM sensor_readings r WHERE r.spot_id = s.id),
+                 '1970-01-01'
+               ) < datetime('now', ?)`
+      )
+      .all(`-${Math.round(thresholdS)} seconds`);
+    if (!stale.length) return [];
+    return ingest(stale.map((r) => ({ key: r.spot_key, sensor_ok: false })));
+  }
+
   // Statistikat për një sektor ose për gjithë parkingun.
   function stats(sector) {
     const where = sector ? "WHERE s.sector = ?" : "";
@@ -155,7 +173,7 @@ function createParkingService(db, config, hub) {
     return changes;
   }
 
-  return { classify, ingest, applyReadings, expireReservations, stats, stateSnapshot };
+  return { classify, ingest, applyReadings, expireReservations, sweepOfflineSensors, stats, stateSnapshot };
 }
 
 module.exports = { createParkingService };

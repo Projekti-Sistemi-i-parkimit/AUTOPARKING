@@ -1,0 +1,62 @@
+{
+  "uid": "parkimi-sys",
+  "title": "Parkimi Inteligjent — Sistemi",
+  "tags": ["parkimi"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "15s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Uptime i aplikacionit",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }, "overrides": [] },
+      "targets": [{ "expr": "parkimi_uptime_seconds", "refId": "A" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Databaza (1 = OK)",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } }, "overrides": [] },
+      "targets": [{ "expr": "parkimi_db_up", "refId": "A" }]
+    },
+    {
+      "id": 3, "type": "stat", "title": "Kërkesa / sekondë (5m)",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [{ "expr": "sum(rate(parkimi_http_requests_total[5m]))", "refId": "A" }]
+    },
+    {
+      "id": 4, "type": "stat", "title": "Gabime 5xx / sekondë (5m)",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 0.1 } ] } }, "overrides": [] },
+      "targets": [{ "expr": "rate(parkimi_http_request_errors_total[5m])", "refId": "A" }]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Kërkesat HTTP sipas statusit",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "stacking": { "mode": "normal" } } }, "overrides": [] },
+      "targets": [{ "expr": "sum by (status) (rate(parkimi_http_requests_total[5m]))", "legendFormat": "{{status}}", "refId": "A" }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Kohëzgjatja e kërkesave (p50 / p95)",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, rate(parkimi_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, rate(parkimi_http_request_duration_seconds_bucket[5m]))", "legendFormat": "p95", "refId": "B" }
+      ]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Kërkesat sipas metodës",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [{ "expr": "sum by (method) (rate(parkimi_http_requests_total[5m]))", "legendFormat": "{{method}}", "refId": "A" }]
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Shëndeti i databazës",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "none", "min": 0, "max": 1 }, "overrides": [] },
+      "targets": [{ "expr": "parkimi_db_up", "legendFormat": "db_up", "refId": "A" }]
+    }
+  ]
+}

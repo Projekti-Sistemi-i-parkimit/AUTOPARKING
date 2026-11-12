@@ -45,9 +45,16 @@ const SerialBridge = (() => {
   }
 
   // Dërgon matjet te backend-i; statusin e klasifikon serveri.
+  // Heartbeat: çdo 10s dërgohen TË GJITHA matjet (anashkalohet dedupe), që
+  // backend-i të dijë se Arduino është gjallë edhe kur vlerat s'ndryshojnë —
+  // përndryshe sweeper-i i serverit e shënon Sektorin A si OFFLINE.
   async function push(readings) {
     const key = API.store.bridgeKey;
     if (!key) { state.onLog("Mungon çelësi API i urës — vendose te fusha më poshtë", "err"); return; }
+    if (Date.now() - (state.lastFullPush || 0) > 10_000) {
+      state.pushedSig = {};
+      state.lastFullPush = Date.now();
+    }
     const list = [];
     for (const r of readings) {
       const sig = r.cm == null ? "x" : Math.round(r.cm * 10);
@@ -163,7 +170,22 @@ const SerialBridge = (() => {
     } finally {
       try { reader.releaseLock(); } catch { /* ignorohet */ }
       state.reading = false;
+      // Leximi mbaroi (shkëputje e qëllimshme ose kabllo e hequr):
+      // Sektori A shënohet menjëherë OFFLINE — kurrë matje të shpikura.
+      markAllOffline("leximi serial u ndërpre");
     }
+  }
+
+  // Shënon të gjithë sensorët e Sektorit A si offline te backend-i.
+  async function markAllOffline(reason) {
+    state.pushedSig = {};
+    const key = API.store.bridgeKey;
+    if (!key) return;
+    const list = Array.from({ length: NUM_SPOTS }, (_, i) => ({ key: `A-P${i + 1}`, cm: null, sensor_ok: false }));
+    try {
+      await API.pushSensor(list, key);
+      state.onLog(`Sektori A u shënua OFFLINE (${reason})`, "err");
+    } catch { /* serveri e kap vetë me sweeper pas pragut */ }
   }
 
   async function disconnect() {

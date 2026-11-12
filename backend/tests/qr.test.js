@@ -47,3 +47,33 @@ test("validimi i QR: kod i panjohur 404, targë që mungon 400", async () => {
   const noScan = await t.api("GET", "/api/qr/find?plate=09-999-XX");
   assert.equal(noScan.status, 404);
 });
+// ---------- PUBLIC_BASE_URL: URL-të e QR-ve në prodhim ----------
+
+test("me PUBLIC_BASE_URL të vendosur, URL-ja e QR-së s'përmban localhost", async () => {
+  const prod = await (require("./helpers").startTestServer)({
+    publicBaseUrl: "https://autoparkoje.onrender.com",
+  });
+  try {
+    const cfg = await prod.api("GET", "/api/config");
+    assert.equal(cfg.status, 200);
+    assert.equal(cfg.json.public_base_url, "https://autoparkoje.onrender.com");
+
+    const qr = await prod.api("GET", "/api/qr/A-P1");
+    assert.equal(qr.status, 200);
+    assert.equal(qr.json.url, "https://autoparkoje.onrender.com/#/spot/A-P1");
+    assert.ok(!qr.json.url.includes("localhost"), "URL-ja e QR-së s'duhet të përmbajë localhost");
+    assert.ok(!qr.json.url.includes("127.0.0.1"));
+  } finally {
+    prod.close();
+  }
+});
+
+test("pa PUBLIC_BASE_URL, url është null dhe frontend-i përdor adresën e vet", async () => {
+  const cfg = await t.api("GET", "/api/config");
+  assert.equal(cfg.status, 200);
+  assert.equal(cfg.json.public_base_url, null);
+
+  const qr = await t.api("GET", "/api/qr/A-P1");
+  assert.equal(qr.status, 200);
+  assert.equal(qr.json.url, null);
+});

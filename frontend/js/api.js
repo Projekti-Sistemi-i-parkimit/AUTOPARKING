@@ -70,6 +70,7 @@ const API = (() => {
 
     // Publike / lexim
     health: () => get("/api/health"),
+    config: () => get("/api/config"),
     state: () => get("/api/state"),
     stats: (sector) => get(`/api/stats${sector ? `?sector=${encodeURIComponent(sector)}` : ""}`),
     spots: (params = {}) => get(`/api/spots?${new URLSearchParams(params)}`),
@@ -113,11 +114,11 @@ const API = (() => {
     },
     adminMe: () => get("/api/admin/me", { auth: "admin" }),
     adminUsers: () => get("/api/admin/users", { auth: "admin" }),
-    adminCreateUser: (u) => post("/api/admin/users", u, { auth: "admin" }),
     adminApiKeys: () => get("/api/admin/api-keys", { auth: "admin" }),
     adminCreateApiKey: (body) => post("/api/admin/api-keys", body, { auth: "admin" }),
     adminRevokeApiKey: (id) => del(`/api/admin/api-keys/${id}`, { auth: "admin" }),
     adminAudit: (params = {}) => get(`/api/admin/audit-log?${new URLSearchParams(params)}`, { auth: "admin" }),
     adminBarrier: (status, reason) => post("/api/admin/barrier", { status, reason }, { auth: "admin" }),
+    adminSetSpotStatus: (key, status) => post(`/api/admin/spots/${encodeURIComponent(key)}/status`, { status }, { auth: "admin" }),
   };
 })();

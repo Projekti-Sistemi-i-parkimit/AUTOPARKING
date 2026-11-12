@@ -69,9 +69,10 @@
   --slot-occ-bg: rgba(239,68,68,.08);
 }
 
-/* ---------- Baza ---------- */
+/* ---------- Baza (mobile-first) ---------- */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
+html, body { overflow-x: clip; } /* asnjë scroll horizontal i faqes */
 body {
   font-family: var(--font);
   background: var(--bg);
@@ -79,10 +80,13 @@ body {
   background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
 }
+img, video, canvas { max-width: 100%; height: auto; }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: inherit; text-decoration: none; }
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
@@ -92,7 +96,7 @@ a { color: inherit; text-decoration: none; }
 .topnav {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 20px;
-  padding: 10px 22px;
+  padding: 10px calc(22px + env(safe-area-inset-right, 0px)) 10px calc(22px + env(safe-area-inset-left, 0px));
   background: var(--card);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
@@ -158,16 +162,19 @@ a { color: inherit; text-decoration: none; }
 .hamburger span { width: 20px; height: 2px; background: var(--text); border-radius: 2px; }
 
 /* ---------- Pamja kryesore ---------- */
-.view { flex: 1; width: min(1280px, 100%); margin: 0 auto; padding: 26px 22px 60px; }
+.view {
+  flex: 1; width: min(1280px, 100%); margin: 0 auto;
+  padding: 26px calc(22px + env(safe-area-inset-right, 0px)) 60px calc(22px + env(safe-area-inset-left, 0px));
+}
 .footer {
   display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-  padding: 16px 24px; font-size: .78rem; color: var(--muted);
+  padding: 16px 24px calc(16px + env(safe-area-inset-bottom, 0px)); font-size: .78rem; color: var(--muted);
   border-top: 1px solid var(--border);
 }
 .footer a:hover { color: var(--primary); }
 
 .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; }
-.page-head h1 { font-size: 1.7rem; font-weight: 800; letter-spacing: -.02em; }
+.page-head h1 { font-size: clamp(1.3rem, 2vw + .85rem, 1.7rem); font-weight: 800; letter-spacing: -.02em; }
 .page-head p { color: var(--muted); margin-top: 4px; font-size: .92rem; }
 
 /* ---------- Kartat ---------- */
@@ -281,6 +288,8 @@ a { color: inherit; text-decoration: none; }
 .sector-tab small { color: var(--muted); font-size: .74rem; }
 .sector-tab .n { font-size: 1.45rem; font-weight: 800; color: var(--success); min-width: 32px; text-align: right; }
 .sector-tab .live-tag { font-size: .64rem; color: var(--primary); font-weight: 700; letter-spacing: .06em; }
+.sector-tab .live-tag.online { color: var(--success); }
+.sector-tab .live-tag.demo { color: var(--warning); }
 
 .lot {
   margin: 18px; padding: 30px 22px; border-radius: 12px; position: relative;
@@ -314,7 +323,7 @@ a { color: inherit; text-decoration: none; }
 [data-theme="dark"] .lane-entry { color: #111; }
 
 .slot {
-  position: relative; aspect-ratio: 3/4.6; min-height: 120px;
+  position: relative; aspect-ratio: 3/4.6; width: 100%; min-height: 120px; max-height: 240px;
   border-left: 3px solid var(--lot-line);
   display: flex; flex-direction: column; align-items: center; justify-content: space-between;
   padding: 8px 4px; cursor: pointer; transition: background .2s;
@@ -347,7 +356,7 @@ a { color: inherit; text-decoration: none; }
 .legend i { width: 10px; height: 10px; border-radius: 3px; }
 
 /* ---------- Tabelat ---------- */
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table.tbl { width: 100%; border-collapse: collapse; font-size: .86rem; }
 .tbl th {
   text-align: left; padding: 11px 14px; font-size: .7rem; font-weight: 700;
@@ -412,7 +421,11 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .86rem; }
 }
 
 /* ---------- Toast ---------- */
-.toasts { position: fixed; bottom: 20px; right: 20px; z-index: 80; display: flex; flex-direction: column; gap: 10px; }
+.toasts {
+  position: fixed; z-index: 80; display: flex; flex-direction: column; gap: 10px;
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  right: calc(20px + env(safe-area-inset-right, 0px));
+}
 .toast {
   min-width: 240px; max-width: 340px; padding: 13px 16px;
   border-radius: 12px; font-size: .85rem; font-weight: 500;
@@ -435,8 +448,8 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .86rem; }
 .qr-card small { color: var(--muted); font-size: .74rem; }
 
 /* ---------- Hero (ballina) ---------- */
-.hero { padding: 46px 40px; margin-bottom: 22px; position: relative; overflow: hidden; }
-.hero h1 { font-size: 2.2rem; font-weight: 800; letter-spacing: -.03em; max-width: 560px; line-height: 1.15; }
+.hero { padding: clamp(26px, 4vw, 46px) clamp(18px, 3.5vw, 40px); margin-bottom: 22px; position: relative; overflow: hidden; }
+.hero h1 { font-size: clamp(1.5rem, 3.2vw + .6rem, 2.2rem); font-weight: 800; letter-spacing: -.03em; max-width: 560px; line-height: 1.15; }
 .hero h1 em { font-style: normal; color: var(--primary); }
 .hero p { color: var(--muted); margin: 12px 0 22px; max-width: 520px; font-size: .96rem; }
 .hero .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -517,15 +530,25 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .86rem; }
   padding: 12px; border-radius: 10px; word-break: break-all; margin: 10px 0;
 }
 
-/* ---------- Responsive ---------- */
+/* ============================================================
+   RESPONSIVE — shtresat sipas pajisjes
+   Baza më lart është fleksibile (grid auto-fit, flex-wrap, clamp);
+   media query-t më poshtë rregullojnë tabletët, telefonat dhe prekjen.
+   ============================================================ */
+
+/* ---------- Tablet / iPad (≤1080px, portrait & landscape) ---------- */
 @media (max-width: 1080px) {
-  .map-grid, .grid-3 { grid-template-columns: 1fr; }
-  .grid-2 { grid-template-columns: 1fr; }
+  .map-grid { grid-template-columns: 1fr; }         /* harta sipër, statistikat poshtë */
+  .grid-3 { grid-template-columns: repeat(2, 1fr); }
+  .grid-3 > :nth-child(odd):last-child { grid-column: 1 / -1; }
   .admin-layout { grid-template-columns: 1fr; }
   .admin-side { position: static; }
   .side-nav { flex-direction: row; flex-wrap: wrap; }
   .side-nav .side-sep { display: none; }
+  .topnav { gap: 12px; }
 }
+
+/* ---------- Telefon (≤840px) ---------- */
 @media (max-width: 840px) {
   .nav-links {
     display: none;
@@ -535,19 +558,99 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .86rem; }
     box-shadow: var(--shadow-lg);
   }
   .nav-links.open { display: flex; }
+  .nav-links a { padding: 12px 14px; }              /* rreshta të prekshëm në meny */
   .hamburger { display: flex; }
   .brand-name { display: none; }
   .live-chip #liveText, .live-chip span:last-child { display: none; }
-  .view { padding: 18px 14px 50px; }
-  .hero { padding: 30px 22px; }
-  .hero h1 { font-size: 1.6rem; }
+
+  .view { padding: 18px calc(14px + env(safe-area-inset-right, 0px)) 50px calc(14px + env(safe-area-inset-left, 0px)); }
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+  .page-head { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .card-pad { padding: 16px; }
+  .card-bar { padding: 14px 16px; }
+  .stats-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .stat-card .s-value { font-size: 1.7rem; }
   .form-row { grid-template-columns: 1fr; }
-  .slot { min-height: 88px; }
+  .footer { flex-direction: column; align-items: center; text-align: center; }
+
+  /* Tabelat: skrollim i kontrolluar — kolonat nuk shtypen */
+  .tbl { min-width: 560px; }
+
+  /* Tabet e sektorëve: një rresht me skrollim horizontal */
+  .sector-tabs {
+    flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity; padding-bottom: 6px; margin-bottom: 12px;
+  }
+  .sector-tab { flex: 0 0 auto; scroll-snap-align: start; }
+
+  /* Harta e parkimit */
+  .slot { min-height: 84px; }
   .slot .slot-icon { font-size: 1.2rem; }
   .slot .slot-cm { display: none; }
   .lot { margin: 10px; padding: 14px 8px; }
-  .page-head h1 { font-size: 1.35rem; }
 }
+
+/* ---------- Telefon i ngushtë (≤640px): modal si fletë nga poshtë,
+   harta skrollohet brenda kutisë së vet ---------- */
+@media (max-width: 640px) {
+  .modal-backdrop { padding: 0; place-items: end stretch; }
+  .modal-box, .modal-box.wide {
+    width: 100%; max-width: 100%;
+    max-height: 92vh; max-height: 92dvh;
+    border-radius: 18px 18px 0 0;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    animation: sheetIn .24s cubic-bezier(.2,.9,.3,1.1);
+  }
+  @keyframes sheetIn { from { opacity: 0; transform: translateY(40px); } }
+
+  .toasts { left: calc(12px + env(safe-area-inset-left, 0px)); right: calc(12px + env(safe-area-inset-right, 0px)); }
+  .toast { min-width: 0; max-width: 100%; }
+
+  /* Vendet mbajnë gjerësi minimale të lexueshme; .lot skrollohet horizontalisht
+     (--cols vendoset nga harta sipas numrit të vendeve në rresht) */
+  .lot { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .lot .lot-row, .lot .lot-lane { min-width: calc(var(--cols, 6) * 54px); }
+
+  .hero-stripe { display: none; }                   /* pa dekor që ngushton tekstin */
+  .hero .hero-actions .btn { flex: 1 1 auto; }
+  .ring { width: 128px; height: 128px; }
+  .ring > div { width: 96px; height: 96px; }
+}
+
+/* ---------- Telefon i vogël (≤480px) ---------- */
+@media (max-width: 480px) {
+  .topnav { gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+  .theme-switch .t-label { display: none; }         /* vetëm ikonat e temës */
+  .theme-btn { padding: 7px 10px; }
+  #btnAdminText { display: none; }                  /* vetëm ikona (ka aria-label) */
+  .btn.btn-admin { padding: 8px 11px; }
+  .brand-mark { width: 34px; height: 34px; font-size: 18px; }
+  .pager { justify-content: center; flex-wrap: wrap; }
+  .qr-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .bar-row { grid-template-columns: 64px 1fr 38px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- Ekranet më të vegjël (≤360px) ---------- */
+@media (max-width: 360px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .live-chip { display: none; }
+}
+
+/* ---------- Pajisjet me prekje: objektiva ≥44×44px ---------- */
+@media (pointer: coarse) {
+  .btn, .theme-btn, .sector-tab, .side-nav button, .modal-close,
+  .field input, .field select, .filters input, .filters select,
+  .nav-links a, .hamburger, .pw-toggle {
+    min-height: 44px;
+  }
+  .modal-close { min-width: 44px; }
+  .hamburger { min-width: 44px; align-items: center; justify-content: center; }
+  .btn-sm { min-height: 40px; }                     /* brenda rreshtave të tabelës */
+  .slot { min-height: 96px; }                       /* vend i prekshëm në hartë */
+}
+
+/* ---------- Lëvizje e reduktuar ---------- */
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }

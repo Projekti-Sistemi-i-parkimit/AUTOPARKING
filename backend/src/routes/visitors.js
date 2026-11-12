@@ -31,11 +31,16 @@ module.exports = function visitorRoutes(db, parking, hub) {
 
     const spot = db
       .prepare(
-        `SELECT s.id, st.status FROM spots s JOIN spot_status st ON st.spot_id = s.id
+        `SELECT s.id, s.has_sensor, st.status FROM spots s JOIN spot_status st ON st.spot_id = s.id
          WHERE s.spot_key = ?`
       )
       .get(key);
     if (!spot) throw new HttpError(404, `Vendi "${key}" nuk ekziston`);
+    // Arkitektura hibride: Sektori A është prototip fizik (Arduino) vetëm për
+    // demonstrime — rezervimet online bëhen vetëm në sektorët B dhe C.
+    if (spot.has_sensor) {
+      throw new HttpError(403, "Sektori A është prototip fizik demonstrimi — rezervo një vend në sektorët B ose C");
+    }
     if (spot.status === "occupied") throw new HttpError(409, "Vendi është i zënë");
 
     parking.expireReservations();

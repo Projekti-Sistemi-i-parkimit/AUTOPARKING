@@ -1,0 +1,22 @@
+
+# Prometheus — monitoron aplikacionin në Render.
+# Prometheus punon vetëm lokalisht në Docker.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Metrikat nga backend-i në Render
+  - job_name: "parkimi-render"
+    metrics_path: /metrics
+    scheme: https
+    static_configs:
+      - targets:
+          - "autoparkoje.onrender.com"
+
+  # Monitorimi i vetë Prometheus
+  - job_name: "prometheus"
+    static_configs:
+      - targets:
+          - "localhost:9090"

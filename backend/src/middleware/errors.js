@@ -18,8 +18,13 @@ function errorHandler(err, req, res, next) {
     return res.status(400).json({ error: "JSON i pavlefshëm në trupin e kërkesës" });
   }
   const status = err.status || 500;
-  if (status >= 500) console.error(err);
-  res.status(status).json({ error: status >= 500 ? "Gabim i brendshëm i serverit" : err.message });
+  // Gabimet e qëllimshme (HttpError, p.sh. 503 "auth i pakonfiguruar") e mbajnë
+  // mesazhin e tyre; vetëm gabimet e papritura ≥500 maskohen dhe logohen.
+  const expected = err instanceof HttpError;
+  if (status >= 500 && !expected) console.error(err);
+  res.status(status).json({
+    error: status >= 500 && !expected ? "Gabim i brendshëm i serverit" : err.message,
+  });
 }
 
 module.exports = { HttpError, notFound, errorHandler };

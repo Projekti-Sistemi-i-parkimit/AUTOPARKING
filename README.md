@@ -165,7 +165,7 @@ Parametrat fillestarë për testim:
 
 ### Kërkesat
 - [Arduino IDE](https://www.arduino.cc/en/software) (ose PlatformIO)
-- [Node.js](https://nodejs.org/) 18+
+- [Docker](https://www.docker.com/) + Docker Compose **ose** [Node.js](https://nodejs.org/) 20+
 - Shfletues i bazuar në Chromium (Chrome / Edge) për **Web Serial API**
 
 ### 1. Klono repo-n
@@ -179,16 +179,54 @@ cd <Projketi-Sistemi-i-parkimit>
 2. Zgjidh **Board: Arduino Uno** dhe portën e duhur.
 3. Ngarko (Upload) kodin dhe hap Serial Monitor në **9600 baud** për kontroll.
 
-### 3. Nis backend-in
+### 3a. Nisja me Docker (e rekomanduar)
+
+I gjithë sistemi (backend + frontend + databaza) niset me një komandë të vetme:
+
 ```bash
-cd backend
-npm install
-cp .env.example .env      # vendos ADMIN_PASSWORD etj.
-npm run seed              # krijon adminin + çelësin API të urës (shfaqet vetëm një herë)
-npm start
+cp .env.example .env      # vendos ADMIN_PASSWORD (e detyrueshme) etj.
+docker compose up -d --build
+docker compose logs backend   # çelësi API i urës shfaqet VETËM një herë këtu — ruaje!
 ```
 
-> Migrimet e databazës aplikohen vetë kur niset backend-i. Të dhëna DEMO: `npm run seed:demo`. Backup, kontrolli dhe pastrimi: shih [`docs/DATABASE.md`](docs/DATABASE.md).
+- Aplikacioni: `http://localhost:3000` (porta ndryshohet me `PORT` në `.env`)
+- Ndalja: `docker compose down` — **të dhënat RUHEN** në volumin `parking_data`
+- ⚠️ **MOS** përdor `docker compose down -v` në operim normal — kjo **fshin databazën**!
+
+**Arkitektura Docker:** një shërbim i vetëm — backend-i Node (imazh `node:22-slim`,
+përdorues pa privilegje, healthcheck në `/api/health`, `restart: unless-stopped`)
+shërben edhe frontend-in statik dhe mban databazën SQLite në volumin e qëndrueshëm
+`parking_data` (`/data/parking.db`). Ura e Arduino-s punon në shfletuesin e operatorit
+(Web Serial), prandaj kontejneri s'ka nevojë për qasje USB. Inicializimi i databazës
+dhe seed-i (admini + çelësi API) ekzekutohen automatikisht në nisje dhe janë idempotentë.
+
+| Variabla (.env) | Default | Përshkrimi |
+|---|---|---|
+| `PORT` | `3000` | Porta në host |
+| `ADMIN_USERNAME` | `admin` | Admini fillestar |
+| `ADMIN_PASSWORD` | — (e detyrueshme) | Fjalëkalimi i adminit fillestar |
+| `BRIDGE_API_KEY` | (gjenerohet) | Çelësi API i urës; bosh = gjenerohet në nisjen e parë |
+| `SESSION_TTL_HOURS` | `12` | Kohëzgjatja e sesionit të adminit |
+| `PUBLIC_BASE_URL` | (bosh) | URL-ja publike në prodhim (p.sh. `https://autoparkoje.onrender.com`) — përdoret në kodet QR; bosh = adresa e shfletuesit |
+| `OCC_THRESHOLD_CM` / `MAX_RANGE_CM` | `3` / `10` | Pragjet e klasifikimit (cm) |
+
+### 3b. Nisja pa Docker (zhvillim lokal)
+```bash
+cp .env.example .env      # NË RRËNJË të repo-s — burimi i vetëm i konfigurimit
+cd backend
+npm install
+npm run seed              # gjeneron çelësin API të urës (shfaqet vetëm një herë)
+npm start
+```
+Kredencialet e adminit lexohen VETËM nga environment-i (`ADMIN_USERNAME` /
+`ADMIN_PASSWORD` në `.env` e rrënjës lokalisht, ose Render → Environment në prodhim).
+
+### 3c. Monitorimi lokal (opsional — Prometheus + Grafana)
+```bash
+docker compose --profile monitoring up -d
+```
+Prometheus: `http://localhost:9090` · Grafana: `http://localhost:3001` (vetëm
+në 127.0.0.1, nuk deployohen në Render). Detajet: [`devops/README.md`](devops/README.md).
 
 ### 4. Hap dashboard-in
 - Hap `http://localhost:3000` — frontend-i (dosja `frontend/`) shërbehet nga backend-i.
@@ -211,6 +249,15 @@ npm start
 
 ## 🧪 Testimi
 
+Testet e automatizuara të backend-it (43 teste: autentikimi, sensorët, QR,
+rezervimet, SSE, qëndrueshmëria e databazës, kufizimi i login-it):
+
+```bash
+cd backend && npm test
+```
+
+Testet manuale të sistemit të plotë:
+
 | Testi | Rezultati i pritshëm |
 |---|---|
 | Vendi i lirë | Paraqitet i lirë, LED gjelbër |
@@ -224,7 +271,6 @@ npm start
 | Databaza | Ndryshimi ruhet dhe lexohet saktë |
 
 Rezultatet dhe fotografitë e testeve ruhen në [`docs/`](docs/).
-Verifikimi i databazës (D1–D7): [`docs/ERDI_D1-D7_VERIFIKIMI.md`](docs/ERDI_D1-D7_VERIFIKIMI.md).
 
 ## 🗓️ Plani i realizimit
 

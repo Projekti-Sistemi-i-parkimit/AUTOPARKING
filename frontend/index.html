@@ -2,17 +2,12 @@
 <html lang="sq" data-theme="glass">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Parkimi Inteligjent</title>
 <meta name="theme-color" content="#2563EB" />
 <meta name="description" content="Platformë për monitorimin dhe menaxhimin e parkimit në kohë reale" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563EB'/%3E%3Ctext x='16' y='23' font-family='Arial' font-size='20' font-weight='800' fill='white' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E" />
 <link rel="stylesheet" href="css/styles.css" />
-<!-- Erdi (parking): fonti Geist dhe stilet e seksioneve Struktura / Parametrat / Raportet -->
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;600&display=swap" />
-<link rel="stylesheet" href="css/admin-parking.css" />
 </head>
 <body>
 
@@ -37,16 +32,16 @@
     <span class="demo-chip" id="demoChip" hidden title="Të dhënat e sensorëve janë të simuluara">⚠ DEMO</span>
 
     <div class="theme-switch" role="group" aria-label="Tema">
-      <button id="themeGlass" class="theme-btn" title="White Glass">☀ Glass</button>
-      <button id="themeDark" class="theme-btn" title="Black Parking">🌙 Parking</button>
+      <button id="themeGlass" class="theme-btn" title="White Glass">☀ <span class="t-label">Glass</span></button>
+      <button id="themeDark" class="theme-btn" title="Black Parking">🌙 <span class="t-label">Parking</span></button>
     </div>
 
-    <button class="btn btn-admin" id="btnAdmin">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z"/></svg>
+    <button class="btn btn-admin" id="btnAdmin" aria-label="Hyrja Admin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z"/></svg>
       <span id="btnAdminText">Hyrja Admin</span>
     </button>
 
-    <button class="hamburger" id="hamburger" aria-label="Menyja">
+    <button class="hamburger" id="hamburger" aria-label="Menyja" aria-controls="navLinks" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
   </div>
@@ -69,8 +64,6 @@
 <script src="js/api.js"></script>
 <script src="js/serial.js"></script>
 <script src="js/admin.js"></script>
-<script src="js/vendor/lucide-icons.js"></script>
-<script src="js/admin-parking.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
