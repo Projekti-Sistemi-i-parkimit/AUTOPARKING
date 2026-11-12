@@ -1,4 +1,4 @@
-# Sistemi Inteligjent i Parkimit — mjedisi Docker
+# AutoParking — mjedisi Docker
 #
 # Nisja:   docker compose up -d --build
 # Ndalja:  docker compose down          (të dhënat RUHEN në volumin parking_data)
@@ -47,6 +47,7 @@ services:
       - "127.0.0.1:9090:9090"
     volumes:
       - ./devops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./devops/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     depends_on:
       - backend
@@ -68,6 +69,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
+      # Tema e bardhë si default (dashboard-et janë stiluar për light mode)
+      GF_USERS_DEFAULT_THEME: "light"
     volumes:
       - ./devops/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./devops/grafana/dashboards:/var/lib/grafana/dashboards:ro

@@ -42,8 +42,13 @@ module.exports = function spotsRoutes(db, parking) {
       .get(req.params.key);
     if (!row) throw new HttpError(404, `Vendi "${req.params.key}" nuk ekziston`);
     const reservation = db
-      .prepare("SELECT visitor_name AS name, plate, created_at AS start, until FROM reservations WHERE spot_id = ?")
-      .get(row.id);
+      .prepare(
+        `SELECT visitor_name AS name, plate, starts_at AS start, until FROM reservations
+         WHERE spot_id = ? AND status IN ('reserved','active')
+           AND starts_at <= ? AND (until IS NULL OR until > ?)
+         ORDER BY starts_at LIMIT 1`
+      )
+      .get(row.id, Date.now(), Date.now());
     const session = db
       .prepare(
         `SELECT visitor_name AS name, plate, started_at, planned_until

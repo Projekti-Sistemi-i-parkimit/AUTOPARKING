@@ -1,5 +1,5 @@
 /* ============================================================
-   PARKIMI INTELIGJENT — Stilet
+   AUTOPARKING — Stilet
    Dy tema: "glass" (White Glass, default) dhe "dark" (Black American Parking)
    Të gjitha ngjyrat kalojnë përmes variablave — çdo komponent i mbështet të dyja.
    ============================================================ */
@@ -654,3 +654,19 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: .86rem; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+/* ===== AutoParking: 3 veprimet kryesore në ballinë ===== */
+.home-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 18px; }
+.action-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 20px 18px; text-decoration: none; color: var(--text);
+  border: 1px solid var(--border); transition: transform .15s ease, box-shadow .15s ease;
+}
+.action-card:hover { transform: translateY(-3px); box-shadow: 0 10px 28px rgba(0,0,0,.10); }
+.action-card .a-icon { font-size: 1.7rem; }
+.action-card b { font-size: 1.05rem; }
+.action-card small { color: var(--muted); line-height: 1.35; }
+@media (max-width: 720px) { .home-actions { grid-template-columns: 1fr; } }
+
+/* Theksimi i vendit të gjetur në hartë (Gjej Veturën) */
+.slot.pulse { animation: slotPulse 1.1s ease-in-out 5; outline: 3px solid var(--accent, #2563EB); outline-offset: 2px; }
+@keyframes slotPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.07); } }

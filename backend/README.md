@@ -1,4 +1,4 @@
-# Backend — Parkimi Inteligjent
+# Backend — AutoParking
 
 REST API + komunikim në kohë reale (SSE) për sistemin e monitorimit të parkimit.
 Teknologjitë: **Node.js (Express) + SQLite (better-sqlite3)** — sipas arkitekturës së README-së kryesore.

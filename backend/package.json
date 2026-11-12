@@ -1,7 +1,7 @@
 {
   "name": "parkimi-backend",
   "version": "1.0.0",
-  "description": "Backend REST API për Sistemin Inteligjent të Monitorimit dhe Menaxhimit të Parkimit",
+  "description": "Backend REST API për AutoParking — Sistemin Inteligjent të Parkimit",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {

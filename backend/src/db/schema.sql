@@ -47,14 +47,25 @@ CREATE TABLE IF NOT EXISTS parking_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_open ON parking_sessions(spot_id) WHERE ended_at IS NULL;
 
+-- Rezervimet: me orar daljeje (until) OSE pa orar (until NULL — "nuk e di
+-- ende kur do të dal"). Lejohen disa rezervime për vend nëse intervalet nuk
+-- mbivendosen. QR-ja e rezervimit ruhet vetëm si hash i token-it.
 CREATE TABLE IF NOT EXISTS reservations (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  spot_id       INTEGER NOT NULL UNIQUE REFERENCES spots(id) ON DELETE CASCADE,
-  visitor_name  TEXT NOT NULL,
-  plate         TEXT NOT NULL,
-  created_at    INTEGER NOT NULL,            -- epoch ms
-  until         INTEGER NOT NULL             -- epoch ms
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  spot_id        INTEGER NOT NULL REFERENCES spots(id) ON DELETE CASCADE,
+  visitor_name   TEXT NOT NULL,
+  plate          TEXT NOT NULL,
+  created_at     INTEGER NOT NULL,           -- epoch ms
+  starts_at      INTEGER NOT NULL,           -- epoch ms (hyrja e planifikuar)
+  until          INTEGER,                    -- epoch ms ose NULL = pa orar daljeje
+  status         TEXT NOT NULL DEFAULT 'reserved'
+                 CHECK (status IN ('reserved','active','completed','cancelled','expired')),
+  qr_token_hash  TEXT UNIQUE,                -- hash-i i token-it të QR-së (kurrë token-i)
+  checked_in_at  INTEGER,                    -- hyrja REALE (epoch ms)
+  checked_out_at INTEGER                     -- dalja REALE (epoch ms)
 );
+CREATE INDEX IF NOT EXISTS idx_res_spot ON reservations(spot_id, status);
+CREATE INDEX IF NOT EXISTS idx_res_plate ON reservations(plate, status);
 
 -- Ngjarjet e hyrjes/daljes nga parkingu.
 CREATE TABLE IF NOT EXISTS gate_events (

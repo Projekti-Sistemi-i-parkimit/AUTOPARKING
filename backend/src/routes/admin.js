@@ -221,7 +221,9 @@ module.exports = function adminRoutes(db, config, hub, adminAuth, parking) {
   // Menaxhimi manual i vendeve (admin + operator): statusi i sektorëve ONLINE
   // B/C vendoset nga paneli; Sektori A mbetet i kontrollueshëm për demonstrime
   // (por sensori/sweeper-i mund ta mbishkruajë kur Arduino flet ose hesht).
-  router.post("/spots/:key/status", auth, (req, res) => {
+  // Shënim: rruga ishte "/spots/:key/status" dhe frontend-i thërriste
+  // "/admin/spots/..." — 404 i heshtur; tani përputhen.
+  router.post("/admin/spots/:key/status", auth, (req, res) => {
     const status = requireEnum((req.body || {}).status, "status", ["free", "occupied"]);
     const spot = db.prepare("SELECT spot_key, has_sensor FROM spots WHERE spot_key = ?").get(req.params.key);
     if (!spot) throw new HttpError(404, `Vendi "${req.params.key}" nuk ekziston`);

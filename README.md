@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🅿️ Sistem Inteligjent për Monitorimin dhe Menaxhimin e Parkimit në Qendra Tregtare
+# 🅿️ AutoParking — Sistem Inteligjent për Monitorimin dhe Menaxhimin e Parkimit
 
 **Prototip IoT + Web për zbulimin e vendeve të lira, orientimin e shoferëve dhe gjetjen e veturës së parkuar.**
 

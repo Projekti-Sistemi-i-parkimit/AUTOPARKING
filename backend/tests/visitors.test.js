@@ -23,17 +23,26 @@ test("vizitori kyçet dhe rezervon një vend të lirë", async () => {
   assert.equal(state.json.res[0].key, "B-P1");
 });
 
-test("rezervimi i një vendi të zënë refuzohet me 409", async () => {
-  await t.api("POST", "/api/sensor", {
-    apiKey: t.bridgeKey,
-    body: { spots: [{ key: "A-P1", cm: 1.5 }] },
-  });
+test("rezervimi i një vendi të zënë refuzohet me 409; Sektori A me 403", async () => {
+  // Admini e zë manualisht një vend online (B) — rezervimi "tani" refuzohet
+  const admin = await t.adminLogin();
+  await t.api("POST", "/api/admin/spots/B-P9/status", { token: admin, body: { status: "occupied" } });
+
   const token = await t.visitorLogin("Besa", "03-200-BB");
   const r = await t.api("POST", "/api/reserve", {
     token,
-    body: { key: "A-P1", end: Date.now() + 3600_000 },
+    body: { key: "B-P9", end: Date.now() + 3600_000 },
   });
   assert.equal(r.status, 409);
+
+  // Sektori A (prototipi fizik) nuk rezervohet kurrë online
+  const a = await t.api("POST", "/api/reserve", {
+    token,
+    body: { key: "A-P1", end: Date.now() + 3600_000 },
+  });
+  assert.equal(a.status, 403);
+
+  await t.api("POST", "/api/admin/spots/B-P9/status", { token: admin, body: { status: "free" } });
 });
 
 test("rezervimi me orë në të kaluarën refuzohet me 400", async () => {
@@ -59,25 +68,32 @@ test("vizitori anulon vetëm rezervimin e vet", async () => {
 
 test("kur vendi i rezervuar zihet, hapet qëndrim me emrin e rezervuesit", async () => {
   const token = await t.visitorLogin("Fjolla", "03-600-FF");
-  await t.api("POST", "/api/reserve", { token, body: { key: "A-P2", end: Date.now() + 3600_000 } });
+  await t.api("POST", "/api/reserve", { token, body: { key: "B-P4", end: Date.now() + 3600_000 } });
 
-  await t.api("POST", "/api/sensor", {
-    apiKey: t.bridgeKey,
-    body: { spots: [{ key: "A-P2", cm: 2.0 }] },
-  });
+  // Zënia reale (nga paneli i adminit — sektorët online s'kanë sensorë)
+  const admin = await t.adminLogin();
+  await t.api("POST", "/api/admin/spots/B-P4/status", { token: admin, body: { status: "occupied" } });
 
   const state = await t.api("GET", "/api/state");
-  const session = state.json.sessions.find((s) => s.key === "A-P2" && !s.end);
-  assert.ok(session, "duhet të ketë qëndrim të hapur për A-P2");
+  const session = state.json.sessions.find((s) => s.key === "B-P4" && !s.end);
+  assert.ok(session, "duhet të ketë qëndrim të hapur për B-P4");
   assert.equal(session.name, "Fjolla");
-  assert.ok(!state.json.res.some((r) => r.key === "A-P2"), "rezervimi konsumohet nga qëndrimi");
+  assert.ok(!state.json.res.some((r) => r.key === "B-P4"), "rezervimi kalon në 'active' dhe hiqet nga lista e pritjes");
 
-  // Kur vendi lirohet, qëndrimi mbyllet
-  await t.api("POST", "/api/sensor", {
-    apiKey: t.bridgeKey,
-    body: { spots: [{ key: "A-P2", cm: 8.0 }] },
-  });
+  // Check-in-i real u regjistrua në rezervim
+  const mine = await t.api("GET", "/api/my/reservations", { token });
+  const activeRes = mine.json.data.find((r) => r.key === "B-P4");
+  assert.equal(activeRes.status, "active");
+  assert.ok(activeRes.checked_in_at, "koha reale e hyrjes regjistrohet");
+
+  // Kur vendi lirohet: qëndrimi mbyllet dhe rezervimi përfundon me kohë reale daljeje
+  await t.api("POST", "/api/admin/spots/B-P4/status", { token: admin, body: { status: "free" } });
   const after = await t.api("GET", "/api/state");
-  const closed = after.json.sessions.find((s) => s.key === "A-P2");
+  const closed = after.json.sessions.find((s) => s.key === "B-P4");
   assert.ok(closed.end, "qëndrimi duhet të jetë i mbyllur");
+
+  const mine2 = await t.api("GET", "/api/my/reservations", { token });
+  const done = mine2.json.data.find((r) => r.key === "B-P4");
+  assert.equal(done.status, "completed");
+  assert.ok(done.checked_out_at >= done.checked_in_at, "koha reale e daljes regjistrohet");
 });

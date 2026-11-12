@@ -23,8 +23,10 @@ function createDb(dbPath) {
   const db = new Database(dbPath);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
-  db.exec(fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8"));
+  // Migrimi para skemës: skema e re ka indekse mbi kolona që tabelat e
+  // vjetra s'i kanë ende — rindërtimi duhet të ndodhë i pari.
   migrate(db);
+  db.exec(fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8"));
   seedSpots(db);
   return db;
 }
@@ -33,8 +35,39 @@ function createDb(dbPath) {
 // nuk i shton kolonat e reja në tabelat e vjetra).
 function migrate(db) {
   const cols = db.prepare("PRAGMA table_info(admin_users)").all().map((c) => c.name);
-  if (!cols.includes("must_change_password")) {
+  if (cols.length && !cols.includes("must_change_password")) {
     db.exec("ALTER TABLE admin_users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0");
+  }
+
+  // Rezervimet: skema e vjetër (spot_id UNIQUE, until NOT NULL, pa statuse)
+  // rindërtohet duke RUAJTUR të gjitha rreshtat ekzistues. Rreshtat e vjetër
+  // marrin starts_at = created_at dhe status 'reserved'.
+  const resCols = db.prepare("PRAGMA table_info(reservations)").all().map((c) => c.name);
+  if (resCols.length && !resCols.includes("starts_at")) {
+    db.exec(`
+      BEGIN;
+      CREATE TABLE reservations_new (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        spot_id        INTEGER NOT NULL REFERENCES spots(id) ON DELETE CASCADE,
+        visitor_name   TEXT NOT NULL,
+        plate          TEXT NOT NULL,
+        created_at     INTEGER NOT NULL,
+        starts_at      INTEGER NOT NULL,
+        until          INTEGER,
+        status         TEXT NOT NULL DEFAULT 'reserved'
+                       CHECK (status IN ('reserved','active','completed','cancelled','expired')),
+        qr_token_hash  TEXT UNIQUE,
+        checked_in_at  INTEGER,
+        checked_out_at INTEGER
+      );
+      INSERT INTO reservations_new (id, spot_id, visitor_name, plate, created_at, starts_at, until)
+        SELECT id, spot_id, visitor_name, plate, created_at, created_at, until FROM reservations;
+      DROP TABLE reservations;
+      ALTER TABLE reservations_new RENAME TO reservations;
+      CREATE INDEX IF NOT EXISTS idx_res_spot ON reservations(spot_id, status);
+      CREATE INDEX IF NOT EXISTS idx_res_plate ON reservations(plate, status);
+      COMMIT;
+    `);
   }
 }
 

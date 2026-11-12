@@ -55,3 +55,26 @@ test("gabimet 5xx numërohen në parkimi_http_request_errors_total", async () =>
   )[1];
   assert.equal(before5xx, after5xx);
 });
+
+test("metrikat e domenit: vende sipas sektorit/statusit, rezervime, sensorë, siguri", async () => {
+  // Një rezervim real në sektorin B që gauge-i të ketë vlerë > 0
+  const vt = (await t.api("POST", "/api/login", { body: { name: "Metrika", plate: "MM111MM" } })).json.token;
+  await t.api("POST", "/api/reserve", { token: vt, body: { key: "B-P5", end: Date.now() + 3600_000 } });
+  // Edhe një tentativë e dështuar (vend inekzistent → error counter)
+  await t.api("POST", "/api/reserve", { token: vt, body: { key: "X-P1", end: Date.now() + 3600_000 } });
+
+  const body = await (await fetch(t.base + "/metrics")).text();
+  assert.match(body, /parkimi_spots_total\{sector="A"\} 6/);
+  assert.match(body, /parkimi_spots_total\{sector="B"\} 12/);
+  assert.match(body, /parkimi_spots_total\{sector="C"\} 20/);
+  assert.match(body, /parkimi_spot_status\{sector="B",status="free"\} \d+/);
+  assert.match(body, /parkimi_reservations_active\{sector="B"\} [1-9]/);
+  assert.match(body, /parkimi_reservation_requests_total\{outcome="ok"\} [1-9]/);
+  assert.match(body, /parkimi_reservation_requests_total\{outcome="error"\} [1-9]/);
+  assert.match(body, /parkimi_parking_sessions_active\{sector="A"\} \d+/);
+  assert.match(body, /parkimi_barrier_state\{status="closed"\} [01]/);
+  assert.match(body, /parkimi_admin_users_total \d+/);
+  assert.match(body, /parkimi_audit_events_total\{action="login"\} \d+/);
+  // Pa PII: emri/targa e vizitorit nuk shfaqen kurrë
+  assert.ok(!body.includes("MM111MM") && !body.includes("Metrika"));
+});

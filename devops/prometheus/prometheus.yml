@@ -6,6 +6,10 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Rregullat e alertimit (shihen te /alerts në UI-në e Prometheus-it)
+rule_files:
+  - /etc/prometheus/alerts.yml
+
 scrape_configs:
   # Metrikat nga backend-i lokal në Docker Compose
   - job_name: "parkimi-backend"

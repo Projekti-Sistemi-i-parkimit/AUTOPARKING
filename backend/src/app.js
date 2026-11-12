@@ -16,6 +16,7 @@ const bridgeRoutes = require("./routes/bridge");
 const eventsRoutes = require("./routes/events");
 const qrRoutes = require("./routes/qr");
 const visitorRoutes = require("./routes/visitors");
+const reservationRoutes = require("./routes/reservations");
 const adminRoutes = require("./routes/admin");
 
 // Faqja e Swagger UI — ngarkon asetet nga CDN për të mos shtuar varësi.
@@ -66,6 +67,7 @@ function createApp({ db, config }) {
   app.use("/api", eventsRoutes(database));
   app.use("/api", qrRoutes(database, config, hub));
   app.use("/api", visitorRoutes(database, parking, hub));
+  app.use("/api", reservationRoutes(database, parking, hub));
   app.use("/api", adminRoutes(database, config, hub, adminAuth, parking));
 
   app.use(notFound);

@@ -33,16 +33,22 @@ test("POST /api/sensor klasifikon distancat sipas pragjeve", async () => {
   assert.equal(state.json.spots["A-P2"].status, "free");     // ≤ 10cm
 });
 
-test("POST /api/sensor pranon status të dërguar direkt dhe raporton çelësa të panjohur", async () => {
+test("POST /api/sensor pranon status direkt VETËM për vendet me sensor (Sektori A)", async () => {
+  // Arkitektura hibride: ura e Arduino-s flet vetëm për Sektorin A;
+  // vendet online (B/C) dhe çelësat inekzistentë raportohen si të panjohur.
   const r = await t.api("POST", "/api/sensor", {
     apiKey: t.bridgeKey,
-    body: { spots: [{ key: "B-P1", status: "occupied" }, { key: "X-P9", cm: 1 }] },
+    body: {
+      spots: [{ key: "A-P3", status: "occupied" }, { key: "B-P1", status: "occupied" }, { key: "X-P9", cm: 1 }],
+    },
   });
   assert.equal(r.status, 200);
-  assert.deepEqual(r.json.unknown_keys, ["X-P9"]);
+  assert.deepEqual(r.json.unknown_keys.sort(), ["B-P1", "X-P9"]);
 
-  const spot = await t.api("GET", "/api/spots/B-P1");
-  assert.equal(spot.json.status, "occupied");
+  const a = await t.api("GET", "/api/spots/A-P3");
+  assert.equal(a.json.status, "occupied");
+  const b = await t.api("GET", "/api/spots/B-P1");
+  assert.equal(b.json.status, "free", "ura s'mund të ndryshojë sektorët online");
 });
 
 test("POST /api/sensor validon trupin e kërkesës", async () => {

@@ -21,10 +21,34 @@ function createParkingService(db, config, hub) {
       "INSERT INTO parking_sessions (spot_id, visitor_name, plate, started_at, planned_until) VALUES (?, ?, ?, ?, ?)"
     ),
     endSession: db.prepare("UPDATE parking_sessions SET ended_at = ? WHERE id = ?"),
-    reservation: db.prepare("SELECT * FROM reservations WHERE spot_id = ?"),
-    deleteReservation: db.prepare("DELETE FROM reservations WHERE id = ?"),
-    expireReservations: db.prepare("DELETE FROM reservations WHERE until < ?"),
+    // Rezervimi që "mbulon" momentin aktual për një vend (reserved ose active)
+    currentReservation: db.prepare(
+      `SELECT * FROM reservations
+       WHERE spot_id = ? AND status IN ('reserved','active')
+         AND starts_at <= ? AND (until IS NULL OR until > ?)
+       ORDER BY starts_at LIMIT 1`
+    ),
+    activateReservation: db.prepare(
+      "UPDATE reservations SET status = 'active', checked_in_at = ? WHERE id = ? AND status = 'reserved'"
+    ),
+    completeReservation: db.prepare(
+      `UPDATE reservations SET status = 'completed', checked_out_at = ?
+       WHERE spot_id = ? AND status = 'active'`
+    ),
+    // Skadimi: me orar → kur kalon "until" pa check-in; pa orar → kur kalon
+    // afati i paraqitjes (no-show) pa check-in. Statusi ruhet për faqen e QR-së.
+    expireReservations: db.prepare(
+      `UPDATE reservations SET status = 'expired'
+       WHERE status = 'reserved'
+         AND ((until IS NOT NULL AND until < ?) OR (until IS NULL AND starts_at + ? < ?))`
+    ),
   };
+
+  // Politikat e rezervimeve pa orar daljeje (që vendet të mos bllokohen pafund):
+  // - NOSHOW_MS: pa check-in brenda 2 orësh nga fillimi → rezervimi skadon.
+  // - OPEN_HOLD_MS: për llogaritjen e disponueshmërisë, një rezervim i hapur
+  //   bllokon vendin deri 24 orë nga fillimi (pas check-in: deri në check-out).
+  const RES_POLICY = { NOSHOW_MS: 2 * 3600_000, OPEN_HOLD_MS: 24 * 3600_000 };
 
   // Klasifikimi sipas README-së: ≤ prag = e zënë, ≤ rrezja max = e lirë, ndryshe e panjohur.
   function classify(cm, sensorOk) {
@@ -62,11 +86,13 @@ function createParkingService(db, config, hub) {
   });
 
   // Hap qëndrim kur vendi zihet; e mbyll kur lirohet. "unknown" nuk e mbyll
-  // (humbja e sinjalit nuk do të thotë se vetura iku).
+  // (humbja e sinjalit nuk do të thotë se vetura iku). Rezervimi përkatës
+  // kalon reserved → active (check-in real) dhe active → completed (check-out
+  // real) — kohët REALE regjistrohen në checked_in_at / checked_out_at.
   function syncSession(spot, prevStatus, status, now) {
     const open = q.openSession.get(spot.id);
     if (status === "occupied" && !open) {
-      const r = q.reservation.get(spot.id);
+      const r = q.currentReservation.get(spot.id, now, now);
       q.startSession.run(
         spot.id,
         r ? r.visitor_name : "Vizitor",
@@ -74,14 +100,16 @@ function createParkingService(db, config, hub) {
         now,
         r ? r.until : null
       );
-      if (r) q.deleteReservation.run(r.id);
+      if (r && r.status === "reserved") q.activateReservation.run(now, r.id);
     } else if (open && status === "free") {
       q.endSession.run(now, open.id);
+      q.completeReservation.run(now, spot.id);
     }
   }
 
   function expireReservations() {
-    return q.expireReservations.run(Date.now()).changes;
+    const now = Date.now();
+    return q.expireReservations.run(now, RES_POLICY.NOSHOW_MS, now).changes;
   }
 
   // Sektori A (prototipi fizik): kur Arduino hesht më gjatë se pragu,
@@ -113,13 +141,14 @@ function createParkingService(db, config, hub) {
       .all(...(sector ? [sector] : []));
     const by = Object.fromEntries(rows.map((r) => [r.status, r.n]));
     const total = (by.free || 0) + (by.occupied || 0) + (by.unknown || 0);
+    const now = Date.now();
     const reserved = db
       .prepare(
-        `SELECT COUNT(*) AS n FROM reservations r JOIN spots s ON s.id = r.spot_id ${
-          sector ? "WHERE s.sector = ?" : ""
-        }`
+        `SELECT COUNT(*) AS n FROM reservations r JOIN spots s ON s.id = r.spot_id
+         WHERE r.status = 'reserved' AND r.starts_at <= ?
+           AND (r.until IS NULL OR r.until > ?) ${sector ? "AND s.sector = ?" : ""}`
       )
-      .get(...(sector ? [sector] : [])).n;
+      .get(now, now, ...(sector ? [sector] : [])).n;
     const known = (by.free || 0) + (by.occupied || 0);
     return {
       sector: sector || "all",
@@ -144,12 +173,17 @@ function createParkingService(db, config, hub) {
       .all()) {
       spots[row.spot_key] = { status: row.status, cm: row.distance_cm };
     }
+    // Vetëm rezervimet NË PRITJE (reserved) — përfshirë të ardhshmet, që
+    // frontend-i të shfaqë "rezervimet e mia"; harta i trajton si "rezervuar"
+    // vetëm ato me starts_at <= tani.
     const res = db
       .prepare(
-        `SELECT s.spot_key AS key, r.visitor_name AS name, r.plate, r.created_at AS start, r.until AS end
-         FROM reservations r JOIN spots s ON s.id = r.spot_id`
+        `SELECT s.spot_key AS key, r.visitor_name AS name, r.plate,
+                r.starts_at AS start, r.until AS end, r.status
+         FROM reservations r JOIN spots s ON s.id = r.spot_id
+         WHERE r.status = 'reserved' AND (r.until IS NULL OR r.until > ?)`
       )
-      .all();
+      .all(Date.now());
     const sessions = db
       .prepare(
         `SELECT s.spot_key AS key, p.visitor_name AS name, p.plate, p.started_at AS start,
