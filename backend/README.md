@@ -1,4 +1,4 @@
-# Backend — Parkimi Inteligjent
+# Backend — AutoParking
 
 REST API + komunikim në kohë reale (SSE) për sistemin e monitorimit të parkimit.
 Teknologjitë: **Node.js (Express) + SQLite (better-sqlite3)** — sipas arkitekturës së README-së kryesore.
@@ -8,9 +8,9 @@ Teknologjitë: **Node.js (Express) + SQLite (better-sqlite3)** — sipas arkitek
 Kërkohet Node.js 20+.
 
 ```bash
+cp .env.example .env        # NË RRËNJË të repo-s — vendos ADMIN_PASSWORD etj.
 cd backend
 npm install
-cp .env.example .env        # vendos ADMIN_PASSWORD etj.
 npm run seed                # krijon adminin + çelësin API të urës (shfaqet VETËM një herë)
 npm start                   # http://localhost:3000
 ```
@@ -36,19 +36,30 @@ QR, autentikimi/RBAC, çelësat API, rezervimet dhe SSE.
 |---|---|---|
 | `PORT` | Porta e serverit | `3000` |
 | `DB_PATH` | Skedari SQLite | `./data/parking.db` |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Admini fillestar (vetëm për seed) | — |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Admini bootstrap (verifikohet nga env në kohë hyrjeje) | — |
 | `BRIDGE_API_KEY` | Çelësi i urës; bosh = gjenerohet nga seed | — |
 | `SESSION_TTL_HOURS` | Kohëzgjatja e sesionit të adminit | `12` |
 | `OCC_THRESHOLD_CM` | Pragu "i zënë" | `3` |
 | `MAX_RANGE_CM` | Rrezja maksimale "i lirë" | `10` |
 
-`.env` nuk futet kurrë në Git; përdor `.env.example` si shabllon.
+`.env` jeton në **rrënjën e repo-s** (jo në `backend/`) dhe nuk futet kurrë në Git;
+përdor `.env.example` në rrënjë si shabllon. I njëjti skedar lexohet nga backend-i
+dhe nga Docker Compose, kështu që emërtimet janë gjithmonë të njëjta.
 
 ## Autentikimi
 
 - **Adminët** (`/api/admin/*`): `POST /api/admin/login` → Bearer token (sesion në DB, ruhet si hash,
   skadon pas `SESSION_TTL_HOURS`). Rolet: `admin` (menaxhon përdoruesit, çelësat, audit log-un)
-  dhe `operator` (qasje bazë). Fjalëkalimet me **scrypt**; veprimet regjistrohen në `audit_log`.
+  dhe `operator` (qasje bazë). Veprimet regjistrohen në `audit_log`. Dy burime kredencialesh:
+  - **Admini bootstrap** nga environment-i (`ADMIN_USERNAME` / `ADMIN_PASSWORD`) — databaza mban
+    vetëm identitetin (sentinel `env-managed`), pa asnjë hash fjalëkalimi.
+  - **Adminët e ekipit** — krijohen me `npm run seed:admins` (në Docker:
+    `docker compose exec backend node src/db/seed-admins.js`). Secili merr fjalëkalim fillestar
+    të rastësishëm 8-shifror që shfaqet **vetëm një herë** në stdout; në DB ruhet vetëm hash-i
+    **scrypt**. Në hyrjen e parë serveri detyron ndryshimin e fjalëkalimit
+    (`POST /api/admin/password` — derisa të ndryshohet, çdo rrugë tjetër kthen 403).
+  - Mbrojtje brute-force: pas 10 përpjekjesh të dështuara nga e njëjta IP brenda 15 minutash,
+    login-i kthen 429.
 - **Ura e Arduino-s** (`POST /api/sensor|/api/events|/api/barrier`): header `x-api-key`.
   Në DB ruhet vetëm hash-i SHA-256 i çelësit; çelësi i plotë shfaqet vetëm në krijim.
 - **Vizitorët** (`/api/login`, `/api/reserve`): token i thjeshtë për rezervime — kontrata

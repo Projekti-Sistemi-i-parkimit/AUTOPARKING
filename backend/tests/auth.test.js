@@ -3,25 +3,26 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { startTestServer, ADMIN } = require("./helpers");
-const { hashPassword, verifyPassword } = require("../src/lib/passwords");
+const { safeEqual } = require("../src/lib/passwords");
+const { ENV_MANAGED_HASH } = require("../src/db/seed");
 
 let t;
 before(async () => { t = await startTestServer(); });
 after(() => t.close());
 
-test("fjalëkalimet hash-ohen me scrypt dhe verifikohen saktë", () => {
-  const h = hashPassword("sekret123");
-  assert.notEqual(h, "sekret123");
-  assert.ok(h.includes(":"));
-  assert.ok(verifyPassword("sekret123", h));
-  assert.ok(!verifyPassword("gabim", h));
+test("safeEqual: krahasim i saktë dhe timing-safe", () => {
+  assert.ok(safeEqual("sekret123", "sekret123"));
+  assert.ok(!safeEqual("sekret123", "gabim"));
+  assert.ok(!safeEqual("sekret123", "sekret1234")); // gjatësi të ndryshme — pa throw
+  assert.ok(!safeEqual("", "x"));
 });
 
-test("login i suksesshëm kthen token dhe përditëson last_login", async () => {
+test("login i suksesshëm me kredencialet nga environment-i kthen token", async () => {
   const r = await t.api("POST", "/api/admin/login", { body: ADMIN });
   assert.equal(r.status, 200);
   assert.ok(r.json.token.startsWith("at_"));
   assert.equal(r.json.role, "admin");
+  assert.equal(r.json.username, ADMIN.username);
 
   const user = t.db.prepare("SELECT last_login FROM admin_users WHERE username = ?").get(ADMIN.username);
   assert.ok(user.last_login);
@@ -31,13 +32,70 @@ test("login i suksesshëm kthen token dhe përditëson last_login", async () => 
   assert.ok(raw.every((s) => s.token_hash !== r.json.token));
 });
 
-test("login i gabuar kthen 401 dhe regjistrohet në audit_log", async () => {
+test("databaza nuk përmban asnjë kredencial të përdorshëm", () => {
+  const rows = t.db.prepare("SELECT username, password_hash FROM admin_users").all();
+  assert.equal(rows.length, 1, "vetëm një llogari admini — pa duplikate");
+  for (const row of rows) {
+    assert.equal(row.password_hash, ENV_MANAGED_HASH, "vetëm sentinel, asnjë hash fjalëkalimi");
+    assert.ok(!row.password_hash.includes(":"), "asnjë format scrypt salt:hash");
+  }
+});
+
+test("fjalëkalim i gabuar → 401 dhe regjistrohet në audit_log", async () => {
   const r = await t.api("POST", "/api/admin/login", {
     body: { username: ADMIN.username, password: "i-gabuar" },
   });
   assert.equal(r.status, 401);
   const failed = t.db.prepare("SELECT 1 FROM audit_log WHERE action = 'login_failed'").get();
   assert.ok(failed);
+});
+
+test("username i gabuar → 401 edhe me fjalëkalim të saktë", async () => {
+  const r = await t.api("POST", "/api/admin/login", {
+    body: { username: "i-panjohur", password: ADMIN.password },
+  });
+  assert.equal(r.status, 401);
+});
+
+test("placeholder si ADMIN_PASSWORD → autentikimi çaktivizohet (503)", async () => {
+  const srv = await startTestServer({ adminPassword: "ndrysho-kete-fjalekalim" });
+  try {
+    // Edhe vetë placeholder-i si përpjekje hyrjeje refuzohet
+    const r = await srv.api("POST", "/api/admin/login", {
+      body: { username: ADMIN.username, password: "ndrysho-kete-fjalekalim" },
+    });
+    assert.equal(r.status, 503);
+    // Asnjë rresht identiteti nuk krijohet kur auth-i është i çaktivizuar
+    assert.equal(srv.db.prepare("SELECT COUNT(*) AS n FROM admin_users").get().n, 0);
+  } finally {
+    srv.close();
+  }
+});
+
+test("variabla që mungojnë → login-i kthen 503, asnjë hyrje e mundur", async () => {
+  const srv = await startTestServer({ adminUsername: "", adminPassword: "" });
+  try {
+    const r = await srv.api("POST", "/api/admin/login", { body: ADMIN });
+    assert.equal(r.status, 503);
+    const any = await srv.api("POST", "/api/admin/login", {
+      body: { username: "admin", password: "admin" },
+    });
+    assert.equal(any.status, 503);
+  } finally {
+    srv.close();
+  }
+});
+
+test("fjalëkalim shumë i shkurtër në environment → 503", async () => {
+  const srv = await startTestServer({ adminPassword: "shkurt" });
+  try {
+    const r = await srv.api("POST", "/api/admin/login", {
+      body: { username: ADMIN.username, password: "shkurt" },
+    });
+    assert.equal(r.status, 503);
+  } finally {
+    srv.close();
+  }
 });
 
 test("rrugët admin refuzohen pa token ose me token të pavlefshëm", async () => {
@@ -48,31 +106,15 @@ test("rrugët admin refuzohen pa token ose me token të pavlefshëm", async () =
   assert.equal(badToken.status, 401);
 });
 
-test("RBAC: operatori nuk menaxhon dot përdoruesit/çelësat (403)", async () => {
-  const adminToken = await t.adminLogin();
-  const created = await t.api("POST", "/api/admin/users", {
-    token: adminToken,
+test("krijimi i përdoruesve nga paneli është hequr (410)", async () => {
+  const token = await t.adminLogin();
+  const r = await t.api("POST", "/api/admin/users", {
+    token,
     body: { username: "operator1", password: "fjalekalim1", role: "operator" },
   });
-  assert.equal(created.status, 201);
-
-  const opLogin = await t.api("POST", "/api/admin/login", {
-    body: { username: "operator1", password: "fjalekalim1" },
-  });
-  const opToken = opLogin.json.token;
-
-  const me = await t.api("GET", "/api/admin/me", { token: opToken });
-  assert.equal(me.status, 200);
-  assert.equal(me.json.role, "operator");
-
-  for (const [method, path] of [
-    ["GET", "/api/admin/users"],
-    ["POST", "/api/admin/api-keys"],
-    ["GET", "/api/admin/audit-log"],
-  ]) {
-    const r = await t.api(method, path, { token: opToken, body: method === "POST" ? { name: "x" } : undefined });
-    assert.equal(r.status, 403, `${method} ${path} duhet të kthejë 403 për operatorin`);
-  }
+  assert.equal(r.status, 410);
+  // Asnjë llogari e re nuk u krijua
+  assert.equal(t.db.prepare("SELECT COUNT(*) AS n FROM admin_users").get().n, 1);
 });
 
 test("logout e fshin sesionin dhe token-i s'punon më", async () => {
@@ -118,27 +160,15 @@ test("çelësat API: krijohen, ruhen si hash, çaktivizohen", async () => {
   assert.equal(rejected.status, 401);
 });
 
-test("audit_log regjistron veprimet kryesore", async () => {
+test("audit_log regjistron veprimet kryesore dhe s'përmban fjalëkalime", async () => {
   const token = await t.adminLogin();
   const r = await t.api("GET", "/api/admin/audit-log?limit=100", { token });
   assert.equal(r.status, 200);
   const actions = r.json.data.map((a) => a.action);
-  for (const expected of ["login", "login_failed", "logout", "user_created", "api_key_created", "api_key_revoked"]) {
+  for (const expected of ["login", "login_failed", "logout", "api_key_created", "api_key_revoked"]) {
     assert.ok(actions.includes(expected), `audit_log duhet të përmbajë "${expected}"`);
   }
-});
-
-test("validimi i krijimit të përdoruesit: fjalëkalim i shkurtër 400, duplikat 409", async () => {
-  const token = await t.adminLogin();
-  const short = await t.api("POST", "/api/admin/users", {
-    token,
-    body: { username: "u2", password: "shkurt" },
-  });
-  assert.equal(short.status, 400);
-
-  const dup = await t.api("POST", "/api/admin/users", {
-    token,
-    body: { username: "operator1", password: "fjalekalim1" },
-  });
-  assert.equal(dup.status, 409);
+  // Asnjë fjalëkalim nuk shfaqet në detajet e audit-it
+  const details = JSON.stringify(r.json.data);
+  assert.ok(!details.includes(ADMIN.password));
 });

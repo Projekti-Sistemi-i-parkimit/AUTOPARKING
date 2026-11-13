@@ -2,10 +2,10 @@
 <html lang="sq" data-theme="glass">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Parkimi Inteligjent</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>AutoParking</title>
 <meta name="theme-color" content="#2563EB" />
-<meta name="description" content="Platformë për monitorimin dhe menaxhimin e parkimit në kohë reale" />
+<meta name="description" content="AutoParking — rezervo parking, QR parking dhe gjej veturën në kohë reale" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563EB'/%3E%3Ctext x='16' y='23' font-family='Arial' font-size='20' font-weight='800' fill='white' text-anchor='middle'%3EP%3C/text%3E%3C/svg%3E" />
 <link rel="stylesheet" href="css/styles.css" />
 </head>
@@ -14,15 +14,15 @@
 <header class="topnav" id="topnav">
   <a class="brand" href="#/">
     <span class="brand-mark">P</span>
-    <span class="brand-name">PARKIMI <b>INTELIGJENT</b></span>
+    <span class="brand-name">AUTO<b>PARKING</b></span>
   </a>
 
   <nav class="nav-links" id="navLinks">
     <a href="#/" data-route="home">Ballina</a>
     <a href="#/map" data-route="map">Harta e Parkimit</a>
-    <a href="#/reserve" data-route="reserve">Rezervimet</a>
+    <a href="#/reserve" data-route="reserve">Rezervo Parking</a>
     <a href="#/find" data-route="find">Gjej Veturën</a>
-    <a href="#/qr" data-route="qr">QR i Vizitorit</a>
+    <a href="#/qr" data-route="qr">QR Parking</a>
   </nav>
 
   <div class="nav-actions">
@@ -32,16 +32,16 @@
     <span class="demo-chip" id="demoChip" hidden title="Të dhënat e sensorëve janë të simuluara">⚠ DEMO</span>
 
     <div class="theme-switch" role="group" aria-label="Tema">
-      <button id="themeGlass" class="theme-btn" title="White Glass">☀ Glass</button>
-      <button id="themeDark" class="theme-btn" title="Black Parking">🌙 Parking</button>
+      <button id="themeGlass" class="theme-btn" title="White Glass">☀ <span class="t-label">Glass</span></button>
+      <button id="themeDark" class="theme-btn" title="Black Parking">🌙 <span class="t-label">Parking</span></button>
     </div>
 
-    <button class="btn btn-admin" id="btnAdmin">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z"/></svg>
+    <button class="btn btn-admin" id="btnAdmin" aria-label="Hyrja Admin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15" aria-hidden="true"><path d="M12 15v2m-6 4h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2zm10-10V7a4 4 0 0 0-8 0v4h8z"/></svg>
       <span id="btnAdminText">Hyrja Admin</span>
     </button>
 
-    <button class="hamburger" id="hamburger" aria-label="Menyja">
+    <button class="hamburger" id="hamburger" aria-label="Menyja" aria-controls="navLinks" aria-expanded="false">
       <span></span><span></span><span></span>
     </button>
   </div>
@@ -50,7 +50,7 @@
 <main id="view" class="view"></main>
 
 <footer class="footer">
-  <span>Parkimi Inteligjent · Modulet STC &amp; SEW · 2026–2027</span>
+  <span>AutoParking · Modulet STC &amp; SEW · 2026–2027</span>
   <a href="/api/docs" target="_blank" rel="noopener">API Docs</a>
 </footer>
 

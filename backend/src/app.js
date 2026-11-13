@@ -3,6 +3,9 @@
 const path = require("path");
 const express = require("express");
 const { createDb } = require("./db");
+const { ensureEnvAdmin } = require("./db/seed");
+const { adminAuthStatus } = require("./config");
+const { createMetrics } = require("./metrics");
 const { createParkingService } = require("./services/parking");
 const { SseHub } = require("./realtime/sse");
 const { notFound, errorHandler } = require("./middleware/errors");
@@ -13,6 +16,7 @@ const bridgeRoutes = require("./routes/bridge");
 const eventsRoutes = require("./routes/events");
 const qrRoutes = require("./routes/qr");
 const visitorRoutes = require("./routes/visitors");
+const reservationRoutes = require("./routes/reservations");
 const adminRoutes = require("./routes/admin");
 
 // Faqja e Swagger UI — ngarkon asetet nga CDN për të mos shtuar varësi.
@@ -30,6 +34,20 @@ function createApp({ db, config }) {
   const hub = new SseHub();
   const parking = createParkingService(database, config, hub);
 
+  // Autentikimi i adminit: kredencialet vijnë VETËM nga environment-i.
+  // Pa variabla të vlefshme, hyrja çaktivizohet me gabim të qartë (pa sekrete).
+  const adminAuth = adminAuthStatus(config.adminUsername, config.adminPassword);
+  if (adminAuth.enabled) {
+    ensureEnvAdmin(database, config.adminUsername);
+  } else {
+    console.error(`⚠ Hyrja e adminit është e ÇAKTIVIZUAR: ${adminAuth.reason}`);
+  }
+
+  // Metrikat Prometheus (numërues anonimë; dështimi i tyre s'prek aplikacionin)
+  const metrics = createMetrics(database);
+  app.use(metrics.middleware);
+  app.get("/metrics", metrics.handler());
+
   app.use(express.json({ limit: "256kb" }));
 
   // Frontend-i shërbehet nga dosja frontend/ (prototipi i vjetër mbetet në rrënjë).
@@ -38,6 +56,8 @@ function createApp({ db, config }) {
   app.get("/", (req, res) => res.sendFile(path.join(frontendDir, "index.html")));
 
   app.get("/api/health", (req, res) => res.json({ ok: true, uptime_s: Math.round(process.uptime()) }));
+  // Konfigurimi publik (pa sekrete) — frontend-i e merr URL-në bazë për QR.
+  app.get("/api/config", (req, res) => res.json({ public_base_url: config.publicBaseUrl || null }));
   app.get("/api/realtime", hub.handler());
   app.get("/api/openapi.json", (req, res) => res.json(openapi));
   app.get("/api/docs", (req, res) => res.type("html").send(SWAGGER_HTML));
@@ -45,9 +65,10 @@ function createApp({ db, config }) {
   app.use("/api", spotsRoutes(database, parking));
   app.use("/api", bridgeRoutes(database, parking, hub));
   app.use("/api", eventsRoutes(database));
-  app.use("/api", qrRoutes(database, hub));
+  app.use("/api", qrRoutes(database, config, hub));
   app.use("/api", visitorRoutes(database, parking, hub));
-  app.use("/api", adminRoutes(database, config, hub));
+  app.use("/api", reservationRoutes(database, parking, hub));
+  app.use("/api", adminRoutes(database, config, hub, adminAuth, parking));
 
   app.use(notFound);
   app.use(errorHandler);

@@ -1,13 +1,14 @@
 {
   "name": "parkimi-backend",
   "version": "1.0.0",
-  "description": "Backend REST API për Sistemin Inteligjent të Monitorimit dhe Menaxhimit të Parkimit",
+  "description": "Backend REST API për AutoParking — Sistemin Inteligjent të Parkimit",
   "main": "src/server.js",
   "type": "commonjs",
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "seed": "node src/db/seed.js",
+    "seed:admins": "node src/db/seed-admins.js",
     "test": "node --test tests/*.test.js"
   },
   "engines": {

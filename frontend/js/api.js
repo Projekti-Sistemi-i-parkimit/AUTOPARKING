@@ -22,6 +22,10 @@ const API = (() => {
     set bridgeKey(v) { v ? localStorage.setItem("pi_bridge_key", v) : localStorage.removeItem("pi_bridge_key"); },
     get rememberedUser() { return localStorage.getItem("pi_remember_user") || ""; },
     set rememberedUser(v) { v ? localStorage.setItem("pi_remember_user", v) : localStorage.removeItem("pi_remember_user"); },
+    // Token-ët e QR-ve të rezervimeve TË MIA — vetëm në këtë pajisje.
+    // Serveri mban vetëm hash-e, prandaj lista jeton këtu.
+    get myReservations() { try { return JSON.parse(localStorage.getItem("pi_my_res") || "[]"); } catch { return []; } },
+    set myReservations(v) { localStorage.setItem("pi_my_res", JSON.stringify((v || []).slice(-10))); },
   };
 
   class ApiError extends Error {
@@ -70,6 +74,7 @@ const API = (() => {
 
     // Publike / lexim
     health: () => get("/api/health"),
+    config: () => get("/api/config"),
     state: () => get("/api/state"),
     stats: (sector) => get(`/api/stats${sector ? `?sector=${encodeURIComponent(sector)}` : ""}`),
     spots: (params = {}) => get(`/api/spots?${new URLSearchParams(params)}`),
@@ -92,8 +97,22 @@ const API = (() => {
       return r;
     },
     visitorLogout: () => { store.visitor = null; },
-    reserve: (key, end) => post("/api/reserve", { key, end }, { auth: "visitor" }),
+    // Rezervimi: Mënyra A { key, start?, end } ose Mënyra B { key, start?, open_ended }.
+    // Token-i i QR-së kthehet vetëm një herë — ruhet lokalisht te myReservations.
+    reserve: async (key, opts = {}) => {
+      const body = typeof opts === "number" ? { key, end: opts } : { key, ...opts };
+      const r = await post("/api/reserve", body, { auth: "visitor" });
+      if (r.token) {
+        store.myReservations = [...store.myReservations.filter((x) => x.token !== r.token),
+          { token: r.token, key: r.key, start: r.start }];
+      }
+      return r;
+    },
     cancelReserve: (key) => del(`/api/reserve/${encodeURIComponent(key)}`, { auth: "visitor" }),
+    myReservations: () => get("/api/my/reservations", { auth: "visitor" }),
+    reservation: (token) => get(`/api/reservation/${encodeURIComponent(token)}`),
+    reservationCheckin: (token) => post(`/api/reservation/${encodeURIComponent(token)}/checkin`),
+    reservationCheckout: (token) => post(`/api/reservation/${encodeURIComponent(token)}/checkout`),
 
     // Ura (çelësi jepet nga operatori në pajisjen me Arduino — s'ka çelës të koduar)
     pushSensor: (spots, apiKey) => post("/api/sensor", { spots }, { apiKey }),
@@ -104,7 +123,22 @@ const API = (() => {
     adminLogin: async (username, password) => {
       const r = await post("/api/admin/login", { username, password });
       store.adminToken = r.token;
-      store.admin = { username: r.username, role: r.role, expires_at: r.expires_at };
+      store.admin = {
+        username: r.username,
+        role: r.role,
+        expires_at: r.expires_at,
+        must_change_password: !!r.must_change_password,
+      };
+      return r;
+    },
+    adminChangePassword: async (currentPassword, newPassword) => {
+      const r = await post(
+        "/api/admin/password",
+        { current_password: currentPassword, new_password: newPassword },
+        { auth: "admin" }
+      );
+      const a = store.admin;
+      if (a) store.admin = { ...a, must_change_password: false };
       return r;
     },
     adminLogout: async () => {
@@ -113,11 +147,11 @@ const API = (() => {
     },
     adminMe: () => get("/api/admin/me", { auth: "admin" }),
     adminUsers: () => get("/api/admin/users", { auth: "admin" }),
-    adminCreateUser: (u) => post("/api/admin/users", u, { auth: "admin" }),
     adminApiKeys: () => get("/api/admin/api-keys", { auth: "admin" }),
     adminCreateApiKey: (body) => post("/api/admin/api-keys", body, { auth: "admin" }),
     adminRevokeApiKey: (id) => del(`/api/admin/api-keys/${id}`, { auth: "admin" }),
     adminAudit: (params = {}) => get(`/api/admin/audit-log?${new URLSearchParams(params)}`, { auth: "admin" }),
     adminBarrier: (status, reason) => post("/api/admin/barrier", { status, reason }, { auth: "admin" }),
+    adminSetSpotStatus: (key, status) => post(`/api/admin/spots/${encodeURIComponent(key)}/status`, { status }, { auth: "admin" }),
   };
 })();

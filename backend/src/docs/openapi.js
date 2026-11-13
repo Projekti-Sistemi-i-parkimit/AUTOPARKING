@@ -29,7 +29,7 @@ const pageParams = [
 module.exports = {
   openapi: "3.0.3",
   info: {
-    title: "Parkimi Inteligjent — Backend API",
+    title: "AutoParking — Backend API",
     version: "1.0.0",
     description:
       "REST API për sistemin e monitorimit dhe menaxhimit të parkimit. " +

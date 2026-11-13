@@ -2,7 +2,7 @@
 
 /* ============================================================
    Aplikacioni kryesor: tema, routing, SSE, pamjet publike.
-   Pamjet: Ballina, Harta, Rezervimet, Gjej Veturën, QR i Vizitorit.
+   Pamjet: Ballina, Harta, Rezervo Parking, Gjej Veturën, QR Parking, Rezervimi (#/r/:token).
    Paneli admin jeton te js/admin.js (window.Admin).
    ============================================================ */
 
@@ -41,12 +41,21 @@ const UI = (window.UI = {
   // Validimi i targës: 2-3 blloqe alfanumerike me vija ndarëse, p.sh. 01-234-AB
   validPlate: (p) => /^[A-Z0-9]{1,4}(-[A-Z0-9]{1,4}){1,2}$/.test(p),
 
-  // Baza e URL-ve në kodet QR. Konfigurohet te Admin → Cilësimet, që QR-të
-  // e printuara të mos përmbajnë "localhost" (telefonat s'e hapin dot).
-  qrBase: () => (localStorage.getItem("pi_public_url") || "").trim().replace(/\/+$/, "") || location.origin,
+  // Baza e URL-ve në kodet QR, me përparësi:
+  //   1) mbivendosja lokale (Admin → Cilësimet, localStorage)
+  //   2) PUBLIC_BASE_URL e serverit (merret nga /api/config në nisje)
+  //   3) adresa aktuale e shfletuesit (zhvillim lokal)
+  // Kështu QR-të e printuara nuk përmbajnë "localhost" (telefonat s'e hapin dot).
+  serverPublicUrl: "",
+  qrBase: () =>
+    (localStorage.getItem("pi_public_url") || "").trim().replace(/\/+$/, "") ||
+    UI.serverPublicUrl ||
+    location.origin,
 });
 UI.$("modal").addEventListener("click", (e) => { if (e.target.id === "modal") UI.closeModal(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") UI.closeModal(); });
+// Ndërrimi i faqes (hash) e mbyll modalin — të mos mbetet i hapur mbi faqen e re
+window.addEventListener("hashchange", () => UI.closeModal());
 
 /* ---------- Tema ---------- */
 const Theme = {
@@ -63,11 +72,16 @@ const Theme = {
   },
 };
 
-/* ---------- Të dhënat e sektorëve (metadata e maketës) ---------- */
+/* ---------- Arkitektura hibride e sektorëve ----------
+   A: prototip FIZIK me Arduino/sensorë — vetëm demonstrime, s'rezervohet online.
+   B/C: parking ONLINE — rezervime nga çdo pajisje, pa varësi nga hardueri. */
 const SECTOR_META = {
-  A: { name: "Sektori A", floor: "Kati B1", live: true },
-  B: { name: "Sektori B", floor: "Kati B2", live: false },
-  C: { name: "Sektori C", floor: "Parkingu i jashtëm", live: false },
+  A: { name: "Sektori A", floor: "Kati B1", live: true, online: false,
+       label: "Prototip fizik – Arduino IoT", badge: "Demo fizike" },
+  B: { name: "Sektori B", floor: "Kati B2", live: false, online: true,
+       label: "Parking Online", badge: "Rezervime online" },
+  C: { name: "Sektori C", floor: "Parkingu i jashtëm", live: false, online: true,
+       label: "Parking Online", badge: "Rezervime online" },
 };
 
 /* ---------- Cache i të dhënave nga backend-i ---------- */
@@ -161,8 +175,13 @@ const Router = {
       a.classList.toggle("on", a.dataset.route === (r.route === "" ? "home" : r.route))
     );
     UI.$("navLinks").classList.remove("open");
+    if (r.spotKey) Views.activeSector = r.spotKey.split("-")[0] || Views.activeSector;
     await this.render();
-    if (r.spotKey) Views.openSpot(r.spotKey);
+    if (r.spotKey) {
+      Views.openSpot(r.spotKey);
+      // Theksim vizual i vendit në planimetri (p.sh. nga "Gjej Veturën")
+      document.querySelector(`[data-spot="${CSS.escape(r.spotKey)}"]`)?.classList.add("pulse");
+    }
   },
 
   async render() {
@@ -173,6 +192,7 @@ const Router = {
         case "home": case "": await Views.home(v); break;
         case "map": await Views.map(v); break;
         case "reserve": await Views.reserve(v); break;
+        case "r": await Views.reservation(v, r.sub); break; // faqja e QR-së së rezervimit
         case "find": await Views.find(v, r.q); break;
         case "qr": await Views.visitorQr(v); break;
         case "admin": await Admin.render(v, r.sub); break;
@@ -199,13 +219,20 @@ const Views = {
     v.innerHTML = `
       <section class="card hero">
         <div class="hero-stripe"></div>
-        <h1>Parkim <em>inteligjent</em>, pa kërkime të kota.</h1>
-        <p>Monitorim i vendeve në kohë reale me sensorë ultrasonikë, rezervime të thjeshta dhe gjetje e veturës me QR.</p>
-        <div class="hero-actions">
-          <a class="btn btn-primary" href="#/map">Shiko hartën</a>
-          <a class="btn" href="#/reserve">Rezervo një vend</a>
-          <a class="btn btn-ghost" href="#/find">Gjej veturën time</a>
+        <h1><em>AutoParking</em> — parkimi yt, pa kërkime të kota.</h1>
+        <p>Rezervo vendin, skano QR-in dhe gjej veturën — gjithçka në tre hapa të thjeshtë.</p>
+        <div class="home-actions">
+          <a class="card action-card" href="#/reserve">
+            <span class="a-icon">🅿️</span><b>Rezervo Parking</b>
+            <small>Zgjidh vendin dhe orarin — ose rezervo pa orar daljeje</small></a>
+          <a class="card action-card" href="#/qr">
+            <span class="a-icon">▦</span><b>QR Parking</b>
+            <small>Skano QR-in e rezervimit — statusi dhe check-in/out</small></a>
+          <a class="card action-card" href="#/find">
+            <span class="a-icon">🚗</span><b>Gjej Veturën</b>
+            <small>Shih sektorin dhe vendin e veturës në hartën e parkingut</small></a>
         </div>
+        <div class="hero-actions mt"><a class="btn btn-ghost" href="#/map">Shiko hartën e plotë →</a></div>
       </section>
 
       <div class="stats-grid">
@@ -276,15 +303,19 @@ const Views = {
       <div class="sector-tabs">
         ${Object.entries(SECTOR_META).map(([sec, m]) => `
           <button class="sector-tab ${sec === k ? "on" : ""}" data-sector="${sec}">
-            <div><b>${m.name}</b><small>${m.floor} · ${(Data.sectors[sec] || []).length} vende</small>
-            ${m.live ? `<div class="live-tag">● SENSORË LIVE</div>` : ""}</div>
+            <div><b>${m.name}</b><small>${m.label} · ${(Data.sectors[sec] || []).length} vende</small>
+            <div class="live-tag ${m.online ? "online" : "demo"}">● ${m.badge.toUpperCase()}</div></div>
             <div class="n">${freeCount(sec)}</div>
           </button>`).join("")}
       </div>
       <div class="map-grid">
         <section class="card">
-          <div class="card-bar"><h2>${UI.esc(meta.name)}<small>${UI.esc(meta.floor)}</small></h2></div>
-          <div class="lot">
+          <div class="card-bar">
+            <h2>${UI.esc(meta.name)}<small>${UI.esc(meta.label)} · ${UI.esc(meta.floor)}</small></h2>
+            ${k === "A" ? `<span class="badge unknown" id="arduinoChip">Arduino: …</span>`
+                        : `<span class="badge free">${UI.esc(meta.badge)}</span>`}
+          </div>
+          <div class="lot" style="--cols:${Math.max(top.length, bottom.length || 1)}">
             ${top.length ? `<div class="lot-row top" style="grid-template-columns:repeat(${top.length},1fr)">${top.map((s) => this.slotHtml(s)).join("")}</div>` : ""}
             <div class="lot-lane"><div class="lane-entry">HYRJA →</div><span class="lane-arrow">➜</span><span class="lane-arrow">➜</span><span class="lane-arrow">➜</span></div>
             <div class="lot-row bottom" style="grid-template-columns:repeat(${bottom.length || 1},1fr)">${bottom.map((s) => this.slotHtml(s)).join("")}</div>
@@ -298,6 +329,18 @@ const Views = {
 
     v.querySelectorAll("[data-sector]").forEach((b) => (b.onclick = () => { this.activeSector = b.dataset.sector; this.map(v); }));
     v.querySelectorAll("[data-spot]").forEach((b) => (b.onclick = () => this.openSpot(b.dataset.spot)));
+
+    // Sektori A: statusi i lidhjes me Arduino-n (nga matja e fundit e sensorëve)
+    if (k === "A") {
+      API.sensors().then((r) => {
+        const chip = document.getElementById("arduinoChip");
+        if (!chip) return;
+        const newest = Math.max(0, ...r.data.map((s) => s.last_reading_at ? Date.parse(s.last_reading_at + "Z") : 0));
+        const liveNow = newest && Date.now() - newest < 60_000 && r.data.some((s) => s.sensor_ok);
+        chip.className = `badge ${liveNow ? "free" : "unknown"}`;
+        chip.textContent = liveNow ? "Arduino: LIVE" : "Arduino: offline — pa sinjal";
+      }).catch(() => { /* paneli mbetet siç është */ });
+    }
   },
 
   slotHtml(s) {
@@ -354,7 +397,8 @@ const Views = {
         </div>
       </div>
       <div class="mt" style="display:flex;gap:10px;flex-wrap:wrap">
-        ${st === "free" ? `<a class="btn btn-primary" href="#/reserve?key=${encodeURIComponent(key)}" onclick="UI.closeModal()">Rezervo këtë vend</a>` : ""}
+        ${st === "free" && SECTOR_META[key.split("-")[0]]?.online ? `<a class="btn btn-primary" href="#/reserve?key=${encodeURIComponent(key)}" onclick="UI.closeModal()">Rezervo këtë vend</a>` : ""}
+        ${key.startsWith("A-") ? `<p class="muted small mt">Prototip fizik (Arduino) — vetëm për demonstrime; rezervimet bëhen në sektorët B dhe C.</p>` : ""}
         ${mine ? `<button class="btn btn-danger" id="mCancelRes">Anulo rezervimin tim</button>` : ""}
         <button class="btn btn-ghost" onclick="UI.closeModal()">Mbyll</button>
       </div>`);
@@ -398,7 +442,7 @@ const Views = {
               <div class="row-item"><span>1. Regjistrohu me emër dhe targë</span></div>
               <div class="row-item"><span>2. Zgjidh vendin e lirë dhe orën e daljes</span></div>
               <div class="row-item"><span>3. Vendi mbahet i rezervuar deri në ardhjen tënde</span></div>
-              <div class="row-item"><span>4. Kur parkon, merr QR-in personal te "QR i Vizitorit"</span></div>
+              <div class="row-item"><span>4. Pas rezervimit merr QR-in — skanoje për check-in dhe "Gjej Veturën"</span></div>
             </div>
           </div>
         </div>`;
@@ -423,90 +467,215 @@ const Views = {
       return;
     }
 
-    const myRes = Data.state.res.find((r) => r.plate === visitor.plate);
-    const freeSpots = Object.keys(SECTOR_META).flatMap((k) =>
+    // Rezervohen vetëm sektorët ONLINE (B/C) — Sektori A është demo fizike.
+    const freeSpots = Object.keys(SECTOR_META).filter((k) => SECTOR_META[k].online).flatMap((k) =>
       (Data.sectors[k] || []).filter((s) => Data.displayStatus(s.spot_key) === "free")
     );
-    const defTime = UI.hm(Date.now() + 3600_000);
+    let myList = [];
+    try { myList = (await API.myReservations()).data.filter((r) => ["reserved", "active"].includes(r.status)); }
+    catch { /* lista mbetet bosh */ }
+    const tokenOf = (key) => [...API.store.myReservations].reverse().find((x) => x.key === key)?.token;
+    const today = new Date().toISOString().slice(0, 10);
+    const defTime = UI.hm(Date.now() + 5 * 60_000);
 
     v.innerHTML = `
       <div class="page-head">
-        <div><h1>Rezervimet</h1><p>I kyçur si <b>${UI.esc(visitor.name)}</b> · <span class="mono">${UI.esc(visitor.plate)}</span></p></div>
+        <div><h1>Rezervo Parking</h1><p>I kyçur si <b>${UI.esc(visitor.name)}</b> · <span class="mono">${UI.esc(visitor.plate)}</span></p></div>
         <button class="btn btn-sm btn-ghost" id="visitorOut">Dil</button>
       </div>
       <div class="grid-2">
         <div class="card card-pad">
-          <h3>${myRes ? "Rezervimi im aktiv" : "Rezervo një vend"}</h3>
+          <h3>Hapi 1 — Zgjidh vendin dhe kohën</h3>
           <div id="resAlert"></div>
-          ${myRes ? `
-            <div class="list-rows">
-              <div class="row-item"><span>Vendi</span><b>${UI.esc(myRes.key)}</b></div>
-              <div class="row-item"><span>Sektori</span><b>${UI.esc(SECTOR_META[myRes.key.split("-")[0]]?.name || "")}</b></div>
-              <div class="row-item"><span>Statusi</span>${UI.badge("reserved")}</div>
-              <div class="row-item"><span>Deri në orën</span><b>${UI.hm(myRes.end)}</b></div>
+          <form id="resForm">
+            <div class="field"><label for="resSpot">Vendi i parkimit (vetëm të lirët)</label>
+              <select id="resSpot">${freeSpots.length
+                ? freeSpots.map((s) => `<option value="${s.spot_key}" ${s.spot_key === preKey ? "selected" : ""}>${s.spot_key} — ${SECTOR_META[s.sector]?.name} (${SECTOR_META[s.sector]?.floor})</option>`).join("")
+                : `<option value="">S'ka vende të lira</option>`}</select>
             </div>
-            <div class="mt" style="display:flex;gap:10px">
-              <button class="btn btn-danger" id="btnCancelRes">Anulo rezervimin</button>
-              <a class="btn btn-ghost" href="#/qr">QR i vizitorit →</a>
-            </div>`
-          : `
-            <form id="resForm">
-              <div class="field"><label for="resSpot">Vendi i parkimit</label>
-                <select id="resSpot">${freeSpots.length
-                  ? freeSpots.map((s) => `<option value="${s.spot_key}" ${s.spot_key === preKey ? "selected" : ""}>${s.spot_key} — ${SECTOR_META[s.sector]?.name} (${SECTOR_META[s.sector]?.floor})</option>`).join("")
-                  : `<option value="">S'ka vende të lira</option>`}</select>
-              </div>
-              <div class="field"><label for="resTime">Do dal në orën (parkingu hapur 24/7)</label>
-                <input type="time" id="resTime" value="${defTime}"></div>
-              <button class="btn btn-primary btn-block" id="resBtn" type="submit" ${freeSpots.length ? "" : "disabled"}>Konfirmo rezervimin</button>
-            </form>`}
+            <div class="form-row">
+              <div class="field"><label for="resDate">Data</label>
+                <input type="date" id="resDate" value="${today}" min="${today}"></div>
+              <div class="field"><label for="resStart">Ora e hyrjes</label>
+                <input type="time" id="resStart" value="${defTime}"></div>
+            </div>
+            <div class="field checkbox-row">
+              <input type="checkbox" id="resOpen">
+              <label for="resOpen" style="margin:0">Nuk e di ende kur do të dal</label>
+            </div>
+            <div class="field" id="endField"><label for="resEnd">Ora e planifikuar e daljes</label>
+              <input type="time" id="resEnd" value="${UI.hm(Date.now() + 2 * 3600_000)}"></div>
+            <button class="btn btn-primary btn-block" id="resBtn" type="submit" ${freeSpots.length ? "" : "disabled"}>Hapi 2 — Konfirmo &amp; merr QR-in</button>
+            <p class="hint" style="margin-top:8px">Pa orar daljeje: qëndron sa të duash — vendi mbahet deri në daljen reale (check-out).</p>
+          </form>
         </div>
-        <div class="card">
-          <div class="card-bar"><h2>Vendet e lira tani<small>${freeSpots.length} të disponueshme</small></h2></div>
-          <div class="table-wrap"><table class="tbl">
-            <thead><tr><th>Vendi</th><th>Sektori</th><th>Kati</th><th>Statusi</th><th></th></tr></thead>
-            <tbody>${freeSpots.slice(0, 12).map((s) => `
+        <div class="card card-pad">
+          <h3>Rezervimet e mia</h3>
+          <div class="list-rows">
+            ${myList.length ? myList.map((r) => {
+              const tk = tokenOf(r.key);
+              return `<div class="row-item"><span><b>${UI.esc(r.key)}</b> · ${UI.fmtDt(r.starts_at)}${r.until ? " – " + UI.hm(r.until) : " · pa orar daljeje"}</span>
+                <span>${UI.badge(r.status === "active" ? "occupied" : "reserved")}
+                ${tk ? `<a class="btn btn-sm" href="#/r/${encodeURIComponent(tk)}">QR →</a>` : ""}</span></div>`;
+            }).join("") : `<p class="muted small" style="padding:10px 0">Ende pa rezervime aktive.</p>`}
+          </div>
+          <div class="table-wrap mt"><table class="tbl">
+            <thead><tr><th>Vendi</th><th>Sektori</th><th>Kati</th><th></th></tr></thead>
+            <tbody>${freeSpots.slice(0, 8).map((s) => `
               <tr><td class="mono">${s.spot_key}</td><td>${SECTOR_META[s.sector]?.name}</td><td>${SECTOR_META[s.sector]?.floor}</td>
-              <td>${UI.badge("free")}</td>
               <td><button class="btn btn-sm" data-pick="${s.spot_key}">Zgjidh</button></td></tr>`).join("") ||
-              `<tr><td colspan="5" class="tbl-empty">S'ka vende të lira për momentin.</td></tr>`}</tbody>
+              `<tr><td colspan="4" class="tbl-empty">S'ka vende të lira për momentin.</td></tr>`}</tbody>
           </table></div>
         </div>
       </div>`;
 
     UI.$("visitorOut").onclick = () => { API.visitorLogout(); UI.toast("U çkyçe si vizitor"); Router.rerender(); };
     v.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => { const sel = UI.$("resSpot"); if (sel) { sel.value = b.dataset.pick; sel.focus(); } }));
+    UI.$("resOpen").onchange = () => { UI.$("endField").style.display = UI.$("resOpen").checked ? "none" : ""; };
 
-    const form = UI.$("resForm");
-    if (form) form.onsubmit = async (e) => {
+    UI.$("resForm").onsubmit = async (e) => {
       e.preventDefault();
       const key = UI.$("resSpot").value;
-      const tVal = UI.$("resTime").value || defTime;
       if (!key) return;
-      const [h, m] = tVal.split(":").map(Number);
-      const end = new Date(); end.setHours(h, m, 0, 0);
-      if (end.getTime() <= Date.now()) end.setDate(end.getDate() + 1);
+      const openEnded = UI.$("resOpen").checked;
+      const [sy, sm, sd] = (UI.$("resDate").value || today).split("-").map(Number);
+      const [sh, smin] = (UI.$("resStart").value || defTime).split(":").map(Number);
+      const start = new Date(sy, sm - 1, sd, sh, smin, 0, 0).getTime();
+      let end = null;
+      if (!openEnded) {
+        const [eh, emin] = (UI.$("resEnd").value || "00:00").split(":").map(Number);
+        end = new Date(sy, sm - 1, sd, eh, emin, 0, 0).getTime();
+        if (end <= start) end += 24 * 3600_000; // dalja pas mesnate → dita tjetër
+      }
       const btn = UI.$("resBtn");
       btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Duke rezervuar…`;
       try {
-        await API.reserve(key, end.getTime());
-        UI.toast(`Vendi ${key} u rezervua deri në ${tVal}`, "ok");
-        await Live.refreshAnd();
+        const r = await API.reserve(key, openEnded
+          ? { start: Math.max(start, Date.now()), open_ended: true }
+          : { start: Math.max(start, Date.now()), end });
+        UI.toast(`Vendi ${key} u rezervua — ja QR-ja jote`, "ok");
+        location.hash = `#/r/${encodeURIComponent(r.token)}`; // Hapi 3: QR-ja
       } catch (err) {
         UI.$("resAlert").innerHTML = `<div class="alert error">${UI.esc(err.message)}</div>`;
-        btn.disabled = false; btn.textContent = "Konfirmo rezervimin";
+        btn.disabled = false; btn.textContent = "Hapi 2 — Konfirmo & merr QR-in";
       }
     };
-    const cancel = UI.$("btnCancelRes");
-    if (cancel) cancel.onclick = async () => {
-      try { await API.cancelReserve(myRes.key); UI.toast("Rezervimi u anulua", "ok"); await Live.refreshAnd(); }
+  },
+
+  /* ===== Faqja e rezervimit (hapet nga skanimi i QR-së) ===== */
+  async reservation(v, token) {
+    if (!token) { location.hash = "#/reserve"; return; }
+    let r;
+    try { r = await API.reservation(token); }
+    catch (e) {
+      v.innerHTML = `
+        <div class="card card-pad" style="max-width:560px;margin:40px auto;text-align:center">
+          <h2>QR i pavlefshëm</h2>
+          <p class="muted">${UI.esc(e.status === 404 ? "Ky kod QR nuk njihet — rezervimi mund të jetë fshirë ose kodi është i gabuar." : e.message)}</p>
+          <a class="btn btn-primary mt" href="#/reserve">Bëj një rezervim të ri</a>
+        </div>`;
+      return;
+    }
+    const meta = SECTOR_META[r.sector] || {};
+    const qrUrl = `${UI.qrBase()}/#/r/${encodeURIComponent(token)}`;
+    const ST = {
+      reserved: ["reserved", "Rezervuar — në pritje të ardhjes"],
+      active: ["occupied", "Aktiv — vetura është në parking"],
+      completed: ["free", "Përfunduar — faleminderit!"],
+      cancelled: ["unknown", "Anuluar"],
+      expired: ["unknown", "Skaduar — rezervimi nuk u përdor në kohë"],
+    }[r.status] || ["unknown", r.status];
+    const mine = API.store.visitor && API.store.myReservations.some((x) => x.token === token);
+
+    v.innerHTML = `
+      <div class="page-head"><div><h1>Rezervimi im</h1><p>AutoParking · ${UI.esc(meta.name || r.sector)} · ${UI.esc(meta.floor || "")}</p></div></div>
+      <div class="grid-2">
+        <div class="card card-pad" style="text-align:center">
+          <div class="qr-box" style="width:200px;height:200px">${UI.qrSvg(qrUrl, 4)}</div>
+          <p class="muted small mt">Skanoje me kamerën e telefonit — hap direkt këtë faqe.</p>
+          <div class="alert ${r.status === "active" ? "ok" : r.status === "reserved" ? "info" : "error"}" style="margin-top:10px">${ST[1]}</div>
+        </div>
+        <div class="card card-pad">
+          <h3>Detajet</h3>
+          <div class="list-rows">
+            <div class="row-item"><span>Vendi</span><b class="mono" style="font-size:1.2em">${UI.esc(r.key)}</b></div>
+            <div class="row-item"><span>Sektori / Kati</span><b>${UI.esc(meta.name || r.sector)} · ${UI.esc(meta.floor || "—")}</b></div>
+            <div class="row-item"><span>Statusi</span>${UI.badge(ST[0])}</div>
+            <div class="row-item"><span>Hyrja e planifikuar</span><b>${UI.fmtDt(r.starts_at)}</b></div>
+            <div class="row-item"><span>Dalja e planifikuar</span><b>${r.until ? UI.fmtDt(r.until) : "Pa orar — qëndro sa të duash"}</b></div>
+            ${r.checked_in_at ? `<div class="row-item"><span>Hyrja reale</span><b>${UI.fmtDt(r.checked_in_at)}</b></div>` : ""}
+            ${r.checked_out_at ? `<div class="row-item"><span>Dalja reale</span><b>${UI.fmtDt(r.checked_out_at)}</b></div>` : ""}
+            ${r.duration_s != null ? `<div class="row-item"><span>${r.status === "active" ? "Në parking prej" : "Qëndrimi zgjati"}</span><b>${UI.fmtDur(r.duration_s * 1000)}</b></div>` : ""}
+            <div class="row-item"><span>Rezervuar nga</span><b>${UI.esc(r.name)} · <span class="mono">${UI.esc(r.plate_masked)}</span></b></div>
+          </div>
+          <div class="mt" style="display:flex;gap:10px;flex-wrap:wrap">
+            ${r.status === "reserved" ? `<button class="btn btn-primary" id="btnCheckin">✓ Check-in — Parkova</button>` : ""}
+            ${r.status === "active" ? `<button class="btn btn-danger" id="btnCheckout">Check-out — Po dal</button>` : ""}
+            ${["reserved", "active"].includes(r.status) ? `<a class="btn" href="#/find?key=${encodeURIComponent(r.key)}">🚗 Gjej veturën</a>` : ""}
+            ${mine && r.status === "reserved" ? `<button class="btn btn-ghost" id="btnCancelR">Anulo</button>` : ""}
+            ${["completed", "cancelled", "expired"].includes(r.status) ? `<a class="btn btn-primary" href="#/reserve">Rezervim i ri</a>` : ""}
+          </div>
+          ${r.status === "reserved" ? `<p class="hint mt">Check-in hapet 15 minuta para orës së rezervimit. Skanimi i QR-së vetëm e hap faqen — asgjë nuk ndryshon pa e shtypur ti butonin.</p>` : ""}
+        </div>
+      </div>`;
+
+    const act = async (fn, okMsg) => {
+      try { await fn(); UI.toast(okMsg, "ok"); Views.reservation(v, token); }
       catch (e) { UI.toast(e.message, "error"); }
     };
+    const ci = UI.$("btnCheckin");
+    if (ci) ci.onclick = () => act(() => API.reservationCheckin(token), "Mirë se erdhe! Check-in u krye");
+    const co = UI.$("btnCheckout");
+    if (co) co.onclick = () => act(() => API.reservationCheckout(token), "Check-out u krye — rrugë të mbarë!");
+    const cx = UI.$("btnCancelR");
+    if (cx) cx.onclick = () => act(() => API.cancelReserve(r.key), "Rezervimi u anulua");
   },
 
   /* ===== Gjej Veturën ===== */
   async find(v, q = {}) {
     const plate = (q.plate || API.store.visitor?.plate || "").toUpperCase();
+
+    // Rezervimet e mia aktive/në pritje — gjetja me NJË klikim, pa kërkim
+    let myActive = [];
+    if (API.store.visitor) {
+      try {
+        myActive = (await API.myReservations()).data.filter((r) => ["active", "reserved"].includes(r.status));
+      } catch { /* kalon te kërkimi me targë */ }
+    }
+    if (q.key) myActive = myActive.filter((r) => r.key === q.key);
+    const tokenOf = (key) => [...API.store.myReservations].reverse().find((x) => x.token && x.key === key)?.token;
+
+    const carCard = (r) => {
+      const meta = SECTOR_META[r.sector] || {};
+      const tk = tokenOf(r.key);
+      return `
+        <div class="alert ok">🚗 Vetura jote ${r.status === "active" ? "është e parkuar" : "ka vend të rezervuar"} te <b>${UI.esc(r.key)}</b></div>
+        <div class="list-rows">
+          <div class="row-item"><span>Sektori</span><b>${UI.esc(meta.name || r.sector)}</b></div>
+          <div class="row-item"><span>Kati</span><b>${UI.esc(meta.floor || "—")}</b></div>
+          <div class="row-item"><span>Vendparkimi</span><b class="mono" style="font-size:1.15em">${UI.esc(r.label)}</b></div>
+          <div class="row-item"><span>Statusi</span>${UI.badge(r.status === "active" ? "occupied" : "reserved")}</div>
+          ${r.checked_in_at ? `<div class="row-item"><span>Në parking prej</span><b>${UI.fmtDur(Date.now() - r.checked_in_at)}</b></div>` : ""}
+        </div>
+        <div class="mt" style="display:flex;gap:10px;flex-wrap:wrap">
+          <a class="btn btn-primary" href="#/spot/${encodeURIComponent(r.key)}">🗺 Shihe në hartën e parkingut</a>
+          ${tk ? `<a class="btn btn-ghost" href="#/r/${encodeURIComponent(tk)}">Rezervimi &amp; QR →</a>` : ""}
+        </div>`;
+    };
+
+    if (myActive.length === 1) {
+      v.innerHTML = `
+        <div class="page-head"><div><h1>Gjej Veturën</h1><p>Vendndodhja nga rezervimi yt — pa GPS, direkt nga planimetria.</p></div></div>
+        <div class="card card-pad" style="max-width:620px">${carCard(myActive[0])}</div>`;
+      return;
+    }
+    if (myActive.length > 1) {
+      v.innerHTML = `
+        <div class="page-head"><div><h1>Gjej Veturën</h1><p>Ke disa rezervime — zgjidh të duhurin.</p></div></div>
+        <div class="grid-2">${myActive.map((r) => `<div class="card card-pad">${carCard(r)}</div>`).join("")}</div>`;
+      return;
+    }
+
     v.innerHTML = `
       <div class="page-head"><div><h1>Gjej Veturën Time</h1><p>Shkruaj targën ose skano QR-in tënd personal.</p></div></div>
       <div class="grid-2">
@@ -526,7 +695,7 @@ const Views = {
             <div class="row-item"><span>Sistemi e lidh targën tënde me atë vend</span></div>
             <div class="row-item"><span>Këtu e gjen në çdo moment vendndodhjen e fundit</span></div>
           </div>
-          <a class="btn mt" href="#/qr">Shko te QR i Vizitorit →</a>
+          <a class="btn mt" href="#/qr">Shko te QR Parking →</a>
         </div>
       </div>`;
 
@@ -558,19 +727,43 @@ const Views = {
     if (q.plate) doFind();
   },
 
-  /* ===== QR i Vizitorit ===== */
+  /* ===== QR Parking ===== */
   async visitorQr(v) {
     const visitor = API.store.visitor;
     if (!visitor) {
       v.innerHTML = `
-        <div class="page-head"><div><h1>QR i Vizitorit</h1><p>QR-i yt personal për gjetjen e veturës dhe informacionin e parkimit.</p></div></div>
+        <div class="page-head"><div><h1>QR Parking</h1><p>QR-të e rezervimeve të tua dhe QR-i personal për gjetjen e veturës.</p></div></div>
         <div class="card card-pad" style="max-width:520px">
-          <div class="alert info">Regjistrohu fillimisht si vizitor te <b>Rezervimet</b> për të marrë QR-in tënd personal.</div>
-          <a class="btn btn-primary" href="#/reserve">Regjistrohu si vizitor →</a>
+          <div class="alert info">Regjistrohu fillimisht si vizitor te <b>Rezervo Parking</b> — çdo rezervim merr QR-in e vet.</div>
+          <a class="btn btn-primary" href="#/reserve">Regjistrohu &amp; rezervo →</a>
         </div>`;
       return;
     }
     try { await Data.refreshState(); } catch { /* vazhdon */ }
+
+    // QR-të e rezervimeve të mia (nga kjo pajisje) — hapen me një skanim
+    const myQrs = [...API.store.myReservations].reverse().slice(0, 4);
+    let myQrsHtml = "";
+    if (myQrs.length) {
+      const rows = [];
+      for (const m of myQrs) {
+        try {
+          const r = await API.reservation(m.token);
+          if (!["reserved", "active"].includes(r.status)) continue;
+          rows.push(`
+            <div class="card card-pad" style="text-align:center">
+              <div class="qr-box" style="width:140px;height:140px">${UI.qrSvg(`${UI.qrBase()}/#/r/${encodeURIComponent(m.token)}`, 3)}</div>
+              <p style="margin:8px 0 2px"><b>${UI.esc(r.key)}</b> ${UI.badge(r.status === "active" ? "occupied" : "reserved")}</p>
+              <a class="btn btn-sm" href="#/r/${encodeURIComponent(m.token)}">Hap rezervimin →</a>
+            </div>`);
+        } catch { /* token i vjetër — kalohet */ }
+      }
+      if (rows.length) {
+        myQrsHtml = `
+          <div class="page-head" style="margin-top:0"><div><h3>QR-të e rezervimeve të mia</h3></div></div>
+          <div class="grid-3">${rows.join("")}</div><hr style="border:none;border-top:1px solid var(--border);margin:22px 0">`;
+      }
+    }
     const myRes = Data.state.res.find((r) => r.plate === visitor.plate);
     const mySession = Data.state.sessions.find((s) => s.plate === visitor.plate && !s.end);
     let lastScan = null;
@@ -583,8 +776,9 @@ const Views = {
 
     v.innerHTML = `
       <div class="page-head">
-        <div><h1>QR i Vizitorit</h1><p>Skanoje me telefon për të hapur faqen tënde të parkimit.</p></div>
+        <div><h1>QR Parking</h1><p>QR-të e rezervimeve dhe QR-i yt personal për gjetjen e veturës.</p></div>
       </div>
+      ${myQrsHtml}
       <div class="grid-2">
         <div class="card card-pad" style="text-align:center">
           <div class="qr-box" style="width:210px;height:210px">${UI.qrSvg(myUrl, 4)}</div>
@@ -607,7 +801,7 @@ const Views = {
             <h3>Parkova — regjistro vendin</h3>
             <p class="muted small" style="margin-bottom:10px">Skano QR-in e vendit, ose shkruaje kodin e tij (p.sh. A-P1):</p>
             <form id="scanForm" style="display:flex;gap:10px">
-              <input id="scanCode" placeholder="A-P1" maxlength="12" style="flex:1;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text);text-transform:uppercase">
+              <input id="scanCode" placeholder="A-P1" maxlength="12" aria-label="Kodi i vendit të parkimit" style="flex:1;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--card2);color:var(--text);text-transform:uppercase">
               <button class="btn btn-primary" type="submit">Regjistro</button>
             </form>
             <div id="scanAlert" class="mt"></div>
@@ -639,7 +833,17 @@ UI.$("btnAdmin").onclick = () => {
   if (API.store.admin) location.hash = "#/admin";
   else Admin.openLogin();
 };
-UI.$("hamburger").onclick = () => UI.$("navLinks").classList.toggle("open");
+UI.$("hamburger").onclick = () => {
+  const open = UI.$("navLinks").classList.toggle("open");
+  UI.$("hamburger").setAttribute("aria-expanded", String(open));
+};
+// Në telefon: menyja mbyllet sapo zgjidhet një lidhje
+UI.$("navLinks").addEventListener("click", (e) => {
+  if (e.target.closest("a")) {
+    UI.$("navLinks").classList.remove("open");
+    UI.$("hamburger").setAttribute("aria-expanded", "false");
+  }
+});
 
 document.addEventListener("admin:expired", () => {
   updateAdminButton();
@@ -654,4 +858,9 @@ SerialBridge.onModeChange = () => { UI.$("demoChip").hidden = !SerialBridge.isDe
 Theme.init();
 updateAdminButton();
 Live.connect();
+
+// Merr URL-në publike nga serveri (PUBLIC_BASE_URL) për kodet QR.
+API.config()
+  .then((c) => { UI.serverPublicUrl = (c?.public_base_url || "").replace(/\/+$/, ""); })
+  .catch(() => { /* zhvillim lokal pa konfigurim — përdoret location.origin */ });
 Router.go();

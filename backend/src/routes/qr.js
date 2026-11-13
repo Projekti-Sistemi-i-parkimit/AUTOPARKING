@@ -6,8 +6,16 @@ const { requireString } = require("../lib/validate");
 
 // Integrimi me QR (skema e Isra-s): informacioni i QR-së për çdo vend,
 // regjistrimi i skanimeve dhe "Gjeje veturën time".
-module.exports = function qrRoutes(db, hub) {
+module.exports = function qrRoutes(db, config, hub) {
   const router = Router();
+
+  // URL-ja që kodohet në QR për një vend. Përdor PUBLIC_BASE_URL nëse është
+  // konfiguruar (prodhim); ndryshe null — frontend-i e ndërton vetë nga
+  // adresa e shfletuesit (zhvillim lokal).
+  function spotUrl(spotKey) {
+    const base = (config && config.publicBaseUrl) || "";
+    return base ? `${base}/#/spot/${encodeURIComponent(spotKey)}` : null;
+  }
 
   // GET /api/qr/find?plate=01-234-AB — vendi i fundit ku ka parkuar targa
   // (para /:key që të mos kapet "find" si çelës vendi)
@@ -35,7 +43,7 @@ module.exports = function qrRoutes(db, hub) {
       )
       .get(req.params.key);
     if (!row) throw new HttpError(404, `Vendi "${req.params.key}" nuk ekziston`);
-    res.json(row);
+    res.json({ ...row, url: spotUrl(row.spot_key) });
   });
 
   // POST /api/qr/scan  { code, plate } — skanohet QR-ja e vendit ku u parkua

@@ -51,10 +51,15 @@ const Admin = (window.Admin = {
       const btn = UI.$("lgBtn");
       btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Duke u kyçur…`;
       try {
-        await API.adminLogin(username, password);
+        const r = await API.adminLogin(username, password);
         API.store.rememberedUser = UI.$("lgRemember").checked ? username : "";
         document.dispatchEvent(new CustomEvent("admin:changed"));
         UI.closeModal();
+        if (r.must_change_password) {
+          // Fjalëkalimi fillestar duhet ndryshuar para çdo veprimi tjetër
+          Admin.openChangePassword({ forced: true, currentPassword: password });
+          return;
+        }
         UI.toast(`Mirë se erdhe, ${username}!`, "ok");
         location.hash = "#/admin";
       } catch (err) {
@@ -72,6 +77,58 @@ const Admin = (window.Admin = {
     document.dispatchEvent(new CustomEvent("admin:changed"));
     UI.toast("U çkyçe me sukses");
     location.hash = "#/";
+  },
+
+  /* ---------- Ndryshimi i fjalëkalimit ---------- */
+  // forced: hyrja e parë me fjalëkalim fillestar — serveri bllokon çdo
+  // veprim tjetër derisa fjalëkalimi të ndryshohet, prandaj modali s'anulohet.
+  openChangePassword({ forced = false, currentPassword = "" } = {}) {
+    UI.modal(`
+      <h3>Ndrysho fjalëkalimin</h3>
+      <p class="m-sub">${
+        forced
+          ? "Ky është fjalëkalimi fillestar — për siguri duhet ta ndryshoni para se të vazhdoni."
+          : "Vendosni fjalëkalimin aktual dhe të riun (min. 8 karaktere)."
+      }</p>
+      <div id="cpAlert"></div>
+      <form id="cpForm">
+        <div class="field">
+          <label for="cpCurrent">Fjalëkalimi aktual</label>
+          <input id="cpCurrent" type="password" autocomplete="current-password"
+                 value="${UI.esc(currentPassword)}" required>
+        </div>
+        <div class="field">
+          <label for="cpNew">Fjalëkalimi i ri (min. 8 karaktere)</label>
+          <input id="cpNew" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <div class="field">
+          <label for="cpNew2">Përsërit fjalëkalimin e ri</label>
+          <input id="cpNew2" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <button class="btn btn-primary btn-block" id="cpBtn" type="submit">Ruaj fjalëkalimin</button>
+      </form>`);
+    UI.$(currentPassword ? "cpNew" : "cpCurrent").focus();
+
+    UI.$("cpForm").onsubmit = async (e) => {
+      e.preventDefault();
+      const alertBox = UI.$("cpAlert");
+      const neu = UI.$("cpNew").value;
+      if (neu !== UI.$("cpNew2").value) {
+        alertBox.innerHTML = `<div class="alert error">Fjalëkalimet e reja nuk përputhen.</div>`;
+        return;
+      }
+      const btn = UI.$("cpBtn");
+      btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> Duke ruajtur…`;
+      try {
+        await API.adminChangePassword(UI.$("cpCurrent").value, neu);
+        UI.closeModal();
+        UI.toast("Fjalëkalimi u ndryshua me sukses", "ok");
+        location.hash = "#/admin";
+      } catch (err) {
+        alertBox.innerHTML = `<div class="alert error">${UI.esc(err.message)}</div>`;
+        btn.disabled = false; btn.textContent = "Ruaj fjalëkalimin";
+      }
+    };
   },
 
   /* ---------- Korniza e panelit ---------- */
@@ -233,9 +290,13 @@ const Admin = (window.Admin = {
                 <td>${UI.esc(s.sector)}</td>
                 <td>${UI.badge(s.status)}</td>
                 <td>${s.distance_cm != null ? s.distance_cm.toFixed(1) + " cm" : "—"}</td>
-                <td>${s.has_sensor ? "📡 Po" : "—"}</td>
+                <td>${s.has_sensor ? "📡 Arduino" : "🌐 Online"}</td>
                 <td class="muted small">${UI.fmtDt(s.updated_at)}</td>
-                <td><button class="btn btn-sm" data-detail="${s.spot_key}">Detajet</button></td>
+                <td style="white-space:nowrap">
+                  <button class="btn btn-sm" data-detail="${s.spot_key}">Detajet</button>
+                  ${s.status !== "free" ? `<button class="btn btn-sm btn-success" data-setstatus="${s.spot_key}|free" title="Shëno të lirë">Liro</button>` : ""}
+                  ${s.status !== "occupied" ? `<button class="btn btn-sm btn-danger" data-setstatus="${s.spot_key}|occupied" title="Shëno të zënë">Zëre</button>` : ""}
+                </td>
               </tr>`).join("") || `<tr><td colspan="7" class="tbl-empty">Asnjë vend nuk përputhet me filtrat.</td></tr>`}</tbody>
           </table></div>
           <div class="pager">
@@ -259,6 +320,19 @@ const Admin = (window.Admin = {
       UI.$("pgPrev").onclick = () => Admin.sections.spots.call(Admin, c, r.page - 1);
       UI.$("pgNext").onclick = () => Admin.sections.spots.call(Admin, c, r.page + 1);
       c.querySelectorAll("[data-detail]").forEach((b) => (b.onclick = () => Admin.spotDetail(b.dataset.detail)));
+      // Statusi manual (sektorët online; Sektori A i mundur për demonstrime)
+      c.querySelectorAll("[data-setstatus]").forEach((b) => (b.onclick = async () => {
+        const [key, status] = b.dataset.setstatus.split("|");
+        b.disabled = true;
+        try {
+          await API.adminSetSpotStatus(key, status);
+          UI.toast(`${key} u shënua ${status === "free" ? "i lirë" : "i zënë"}`, "ok");
+          Admin.sections.spots.call(Admin, c, r.page);
+        } catch (err) {
+          UI.toast(err.message, "error");
+          b.disabled = false;
+        }
+      }));
     },
 
     /* === Vizitorët (qëndrimet) === */
@@ -488,8 +562,8 @@ const Admin = (window.Admin = {
     async users(c) {
       const r = await API.adminUsers();
       c.innerHTML = `
-        <div class="page-head"><div><h1>Përdoruesit</h1><p>Administratorët dhe operatorët e sistemit.</p></div>
-          <button class="btn btn-primary" id="newUser">+ Përdorues i ri</button></div>
+        <div class="page-head"><div><h1>Përdoruesit</h1><p>Llogaritë krijohen në server ("npm run seed:admins"); admini bootstrap vjen nga Environment Variables (ADMIN_USERNAME / ADMIN_PASSWORD).</p></div>
+        <button class="btn btn-ghost" onclick="Admin.openChangePassword()">Ndrysho fjalëkalimin tim</button></div>
         <div class="card">
           <div class="table-wrap"><table class="tbl">
             <thead><tr><th>ID</th><th>Përdoruesi</th><th>Roli</th><th>Hyrja e fundit</th><th>Krijuar</th></tr></thead>
@@ -499,30 +573,8 @@ const Admin = (window.Admin = {
               <td class="muted small">${UI.fmtDt(u.last_login)}</td>
               <td class="muted small">${UI.fmtDt(u.created_at)}</td></tr>`).join("")}</tbody>
           </table></div>
-        </div>`;
-      UI.$("newUser").onclick = () => {
-        UI.modal(`
-          <h3>Përdorues i ri</h3>
-          <p class="m-sub">Fjalëkalimi duhet të ketë së paku 8 karaktere.</p>
-          <div id="nuAlert"></div>
-          <form id="nuForm">
-            <div class="field"><label for="nuUser">Emri i përdoruesit</label><input id="nuUser" required maxlength="50"></div>
-            <div class="field"><label for="nuPass">Fjalëkalimi</label><input id="nuPass" type="password" required minlength="8"></div>
-            <div class="field"><label for="nuRole">Roli</label>
-              <select id="nuRole"><option value="operator">operator — qasje bazë</option><option value="admin">admin — qasje e plotë</option></select></div>
-            <button class="btn btn-primary btn-block" type="submit">Krijo</button>
-          </form>`);
-        UI.$("nuForm").onsubmit = async (e) => {
-          e.preventDefault();
-          try {
-            await API.adminCreateUser({ username: UI.$("nuUser").value.trim(), password: UI.$("nuPass").value, role: UI.$("nuRole").value });
-            UI.closeModal(); UI.toast("Përdoruesi u krijua", "ok");
-            Admin.sections.users.call(Admin, c);
-          } catch (err) {
-            UI.$("nuAlert").innerHTML = `<div class="alert error">${UI.esc(err.message)}</div>`;
-          }
-        };
-      };
+        </div>
+        <p class="muted small mt">Për të ndryshuar kredencialet: përditëso variablat në .env (lokalisht / Docker) ose në Render → Environment, pastaj rinis shërbimin.</p>`;
     },
 
     /* === Çelësat API (vetëm admin) === */
@@ -624,7 +676,7 @@ const Admin = (window.Admin = {
               <input id="publicUrl" placeholder="p.sh. http://192.168.1.50:3000 ose https://parkimi.shembull.com"
                 value="${UI.esc(localStorage.getItem("pi_public_url") || "")}">
               <div class="hint">QR-të e printuara duhet të hapen nga telefonat — mos lër "localhost".
-                Bosh = përdoret adresa aktuale e shfletuesit.</div>
+                Bosh = përdoret PUBLIC_BASE_URL e serverit${UI.serverPublicUrl ? ` (<b>${UI.esc(UI.serverPublicUrl)}</b>)` : ""}, ose adresa aktuale e shfletuesit.</div>
             </div>
           </div>
           <div class="card card-pad">

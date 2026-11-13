@@ -1,0 +1,94 @@
+# Rregullat e alertimit — AutoParking
+# Vlerësohen nga Prometheus (profili "monitoring"); shihen te http://localhost:9090/alerts
+# Shënim: pa Alertmanager të konfiguruar alertet vetëm shfaqen/ruhen në Prometheus —
+# nuk dërgohen njoftime (email/Slack). Shtoje Alertmanager-in kur të duhet njoftim.
+
+groups:
+  - name: parkimi-availability
+    rules:
+      - alert: BackendOffline
+        expr: up{job="parkimi-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Backend-i lokal është offline"
+          description: "Prometheus nuk e skrapon dot backend-in (kontejneri parkimi-backend) prej 1 minute."
+
+      - alert: DatabaseUnavailable
+        expr: parkimi_db_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+        annotations:
+          summary: "Databaza SQLite është e paarritshme"
+          description: "parkimi_db_up = 0 — backend-i s'po i përgjigjet query-ve të databazës."
+
+      - alert: MetricsMissing
+        expr: absent(parkimi_uptime_seconds)
+        for: 5m
+        labels:
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "Metrikat e aplikacionit mungojnë"
+          description: "Seria parkimi_uptime_seconds mungon prej 5 minutash — endpoint-i /metrics s'po përgjigjet ose aplikacioni s'është nisur."
+
+  - name: parkimi-sensors
+    rules:
+      - alert: SensorOffline
+        expr: parkimi_sensor_last_reading_age_seconds > 120
+        for: 2m
+        labels:
+          severity: warning
+          category: sector-a
+        annotations:
+          summary: "Sensori i vendit {{ $labels.spot }} ka heshtur"
+          description: "Vendi {{ $labels.spot }} (Sektori A, prototipi Arduino) s'ka dërguar matje prej {{ $value }} sekondash."
+
+      - alert: SectorASpotsUnknown
+        expr: parkimi_spot_status{sector="A",status="unknown"} == ignoring(status) parkimi_spots_total{sector="A"}
+        for: 10m
+        labels:
+          severity: info
+          category: sector-a
+        annotations:
+          summary: "I gjithë Sektori A është pa sinjal"
+          description: "Të gjitha vendet me sensor janë 'unknown' prej 10 minutash — ura e Arduino-s me gjasë s'është e lidhur (normale jashtë demonstrimeve)."
+
+  - name: parkimi-http
+    rules:
+      - alert: Http5xxSpike
+        expr: rate(parkimi_http_request_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          category: api
+        annotations:
+          summary: "Rritje e gabimeve HTTP 5xx"
+          description: "Mbi 0.1 gabime 5xx/sekondë mesatarisht në 5 minutat e fundit."
+
+      - alert: ApiLatencyHigh
+        expr: |
+          histogram_quantile(0.95, rate(parkimi_http_request_duration_seconds_bucket[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          category: api
+        annotations:
+          summary: "Vonesa e API-së (p95) mbi 1 sekondë"
+          description: "95% e kërkesave po zgjasin mbi 1s prej 10 minutash."
+
+  - name: parkimi-reservations
+    rules:
+      - alert: ReservationErrors
+        expr: rate(parkimi_reservation_requests_total{outcome="error"}[15m]) > 0.05
+        for: 15m
+        labels:
+          severity: warning
+          category: reservations
+        annotations:
+          summary: "Shkallë e lartë dështimesh në rezervime"
+          description: "Mbi 0.05 kërkesa të dështuara rezervimi/sekondë (mesatarja 15-minutëshe) — kontrollo logjet e backend-it."

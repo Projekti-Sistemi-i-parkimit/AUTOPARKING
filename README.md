@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🅿️ Sistem Inteligjent për Monitorimin dhe Menaxhimin e Parkimit në Qendra Tregtare
+# 🅿️ AutoParking — Sistem Inteligjent për Monitorimin dhe Menaxhimin e Parkimit
 
 **Prototip IoT + Web për zbulimin e vendeve të lira, orientimin e shoferëve dhe gjetjen e veturës së parkuar.**
 
@@ -165,7 +165,7 @@ Parametrat fillestarë për testim:
 
 ### Kërkesat
 - [Arduino IDE](https://www.arduino.cc/en/software) (ose PlatformIO)
-- [Node.js](https://nodejs.org/) 18+
+- [Docker](https://www.docker.com/) + Docker Compose **ose** [Node.js](https://nodejs.org/) 20+
 - Shfletues i bazuar në Chromium (Chrome / Edge) për **Web Serial API**
 
 ### 1. Klono repo-n
@@ -179,14 +179,88 @@ cd <Projketi-Sistemi-i-parkimit>
 2. Zgjidh **Board: Arduino Uno** dhe portën e duhur.
 3. Ngarko (Upload) kodin dhe hap Serial Monitor në **9600 baud** për kontroll.
 
-### 3. Nis backend-in
+### 3a. Nisja me Docker (e rekomanduar)
+
+I gjithë sistemi (backend + frontend + databaza) niset me një komandë të vetme:
+
 ```bash
+cp .env.example .env      # vendos ADMIN_PASSWORD (e detyrueshme) etj.
+docker compose up -d --build
+docker compose logs backend   # çelësi API i urës shfaqet VETËM një herë këtu — ruaje!
+```
+
+- Aplikacioni: `http://localhost:3000` (porta ndryshohet me `PORT` në `.env`)
+- Ndalja: `docker compose down` — **të dhënat RUHEN** në volumin `parking_data`
+- ⚠️ **MOS** përdor `docker compose down -v` në operim normal — kjo **fshin databazën**!
+
+**Arkitektura Docker:** një shërbim i vetëm — backend-i Node (imazh `node:22-slim`,
+përdorues pa privilegje, healthcheck në `/api/health`, `restart: unless-stopped`)
+shërben edhe frontend-in statik dhe mban databazën SQLite në volumin e qëndrueshëm
+`parking_data` (`/data/parking.db`). Ura e Arduino-s punon në shfletuesin e operatorit
+(Web Serial), prandaj kontejneri s'ka nevojë për qasje USB. Inicializimi i databazës
+dhe seed-i (admini + çelësi API) ekzekutohen automatikisht në nisje dhe janë idempotentë.
+
+| Variabla (.env) | Default | Përshkrimi |
+|---|---|---|
+| `PORT` | `3000` | Porta në host |
+| `ADMIN_USERNAME` | `admin` | Admini fillestar |
+| `ADMIN_PASSWORD` | — (e detyrueshme) | Fjalëkalimi i adminit fillestar |
+| `BRIDGE_API_KEY` | (gjenerohet) | Çelësi API i urës; bosh = gjenerohet në nisjen e parë |
+| `SESSION_TTL_HOURS` | `12` | Kohëzgjatja e sesionit të adminit |
+| `PUBLIC_BASE_URL` | (bosh) | URL-ja publike në prodhim (p.sh. `https://autoparkoje.onrender.com`) — përdoret në kodet QR; bosh = adresa e shfletuesit |
+| `OCC_THRESHOLD_CM` / `MAX_RANGE_CM` | `3` / `10` | Pragjet e klasifikimit (cm) |
+| `SENSOR_OFFLINE_S` | `45` | Sekondat e heshtjes së Arduino-s para se vendet me sensor të shënohen OFFLINE |
+| `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD` | `admin` / `admin` | Vetëm për profilin lokal `monitoring` |
+
+### 3b. Nisja pa Docker (zhvillim lokal)
+```bash
+cp .env.example .env      # NË RRËNJË të repo-s — burimi i vetëm i konfigurimit
 cd backend
 npm install
-cp .env.example .env      # vendos ADMIN_PASSWORD etj.
-npm run seed              # krijon adminin + çelësin API të urës (shfaqet vetëm një herë)
+npm run seed              # gjeneron çelësin API të urës (shfaqet vetëm një herë)
 npm start
 ```
+Kredencialet e adminit bootstrap lexohen nga environment-i (`ADMIN_USERNAME` /
+`ADMIN_PASSWORD` në `.env` e rrënjës lokalisht, ose Render → Environment në prodhim).
+
+**Adminët e ekipit** (emir, erblin, isra, erdi, loresa, blendi) krijohen një herë me:
+```bash
+npm run seed:admins                                        # lokalisht (nga backend/)
+docker compose exec backend node src/db/seed-admins.js     # në Docker
+```
+Fjalëkalimet fillestare (8 shifra, të rastësishme) shfaqen **vetëm një herë** në
+terminal — shpërndaji privatisht; në databazë ruhet vetëm hash-i scrypt. Në hyrjen
+e parë secili detyrohet ta ndryshojë fjalëkalimin. Në Render ekzekutohet e njëjta
+komandë një herë nga **Render → Shell** (databaza në Persistent Disk e ruan).
+
+### 3c. Monitorimi lokal (opsional — Prometheus + Grafana)
+```bash
+docker compose --profile monitoring up -d
+```
+Prometheus: `http://localhost:9090` · Grafana: `http://localhost:3001` (vetëm
+në 127.0.0.1, nuk deployohen në Render). Detajet: [`devops/README.md`](devops/README.md).
+
+### 3d. Deployment në Render
+
+Render **nuk e lexon** skedarin lokal `.env` — variablat vendosen te
+**Render → Service → Environment**. Të nevojshmet:
+
+| Variabla në Render | Vlera |
+|---|---|
+| `ADMIN_USERNAME` | emri i adminit (p.sh. `admin`) |
+| `ADMIN_PASSWORD` | **e detyrueshme** — fjalëkalim real, min. 8 karaktere (placeholder-ët refuzohen) |
+| `PUBLIC_BASE_URL` | URL-ja publike e shërbimit (p.sh. `https://autoparkoje.onrender.com`) — që kodet QR të hapen nga telefonat |
+| `BRIDGE_API_KEY` | opsionale — vendose vetëm nëse do çelës të caktuar; bosh = gjenerohet në nisjen e parë (shfaqet një herë në logje) |
+| `SESSION_TTL_HOURS`, `OCC_THRESHOLD_CM`, `MAX_RANGE_CM`, `SENSOR_OFFLINE_S` | opsionale — vetëm nëse do të ndryshosh default-et |
+
+Shënime:
+- `PORT` e cakton vetë Render-i — mos e vendos manualisht.
+- `GRAFANA_*` nuk vendosen në Render (monitorimi është vetëm lokal).
+- Databaza SQLite në Render kërkon **Persistent Disk**; monto diskun dhe vendos
+  `DB_PATH` te rruga e tij (p.sh. `/data/parking.db`), përndryshe të dhënat
+  humbasin në çdo rideploy.
+- Sekretet nuk ekspozohen në frontend apo në përgjigjet e API-së — frontend-i
+  statik shërbehet nga i njëjti backend dhe s'ka nevojë për variabla të veta.
 
 ### 4. Hap dashboard-in
 - Hap `http://localhost:3000` — frontend-i (dosja `frontend/`) shërbehet nga backend-i.
@@ -208,6 +282,15 @@ npm start
 > QR Code **nuk detekton veturën automatikisht**; ai identifikon vendin që skanohet. Detektimi i zënies bëhet nga sensorët.
 
 ## 🧪 Testimi
+
+Testet e automatizuara të backend-it (43 teste: autentikimi, sensorët, QR,
+rezervimet, SSE, qëndrueshmëria e databazës, kufizimi i login-it):
+
+```bash
+cd backend && npm test
+```
+
+Testet manuale të sistemit të plotë:
 
 | Testi | Rezultati i pritshëm |
 |---|---|
